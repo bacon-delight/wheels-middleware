@@ -16,7 +16,7 @@ permissions:
 env:
   AWS_REGION: ap-south-2
   ECR_REPO: wheels-middleware
-  FUNCTION_NAME: wheels-api
+  FUNCTION_NAME: wheels-dev-api
   ALIAS: live
 
 jobs:
@@ -65,7 +65,7 @@ jobs:
       # Infra creates them from it. The API also republishes + repoints its warm `live` alias.
       - name: Update Lambda code (if functions exist)
         run: |
-          for FN in "$FUNCTION_NAME" wheels-parse wheels-extract wheels-notify; do
+          for FN in "$FUNCTION_NAME" wheels-dev-parse wheels-dev-extract wheels-dev-notify; do
             if aws lambda get-function --function-name "$FN" >/dev/null 2>&1; then
               aws lambda update-function-code --function-name "$FN" --image-uri "$SHA_IMAGE" >/dev/null
               aws lambda wait function-updated --function-name "$FN"
