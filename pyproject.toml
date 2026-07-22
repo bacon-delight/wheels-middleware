@@ -1,0 +1,51 @@
+[project]
+name = "wheels-middleware"
+version = "0.1.0"
+description = "Wheels Contract Intelligence — extraction, OCR, approval-lifecycle, and API middleware"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+    "pymupdf>=1.24",
+    "boto3>=1.34",
+    "anthropic>=0.39",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.110",
+    "mangum>=0.17",
+    "uvicorn>=0.29",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "llm: tests that make a live LLM call (Bedrock/Anthropic); skipped unless --run-llm is passed",
+]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# `(str, Enum)` is intentional; switching to StrEnum changes str()/format() behavior that
+# our pydantic `use_enum_values=True` round-tripping relies on.
+ignore = ["UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# The golden dataset is a dense ground-truth data table; wrapping every FeeItem is noise.
+"tests/golden/ground_truth.py" = ["E501"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

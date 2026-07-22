@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+dist/
+build/
+*.zip
+lambda_build/
+
+# Local scratch
+scratch/
+*.log
+
+# OS
+.DS_Store

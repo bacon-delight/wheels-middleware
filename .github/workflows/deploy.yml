@@ -1,0 +1,81 @@
+name: middleware ci/cd
+
+# PRs run the deterministic test suite. Push to `dev` builds the container image, pushes it
+# to ECR, and updates the Lambda code + `live` alias. No OpenTofu / infra redeploy happens
+# here — Infra owns the Lambda, alias, and provisioned concurrency; we only ship new code.
+
+on:
+  pull_request:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+  id-token: write  # for AWS OIDC (no long-lived keys)
+
+env:
+  AWS_REGION: ap-south-2
+  ECR_REPO: wheels-middleware
+  FUNCTION_NAME: wheels-api
+  ALIAS: live
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ".[api,dev]"
+      - run: ruff check .
+      - run: pytest -q   # deterministic suite; live LLM tests are gated behind --run-llm
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: dev   # reads the `dev` environment secrets (AWS_ROLE_ARN, ...)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image (:latest + :sha)
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          SHA_IMAGE="$REGISTRY/$ECR_REPO:${GITHUB_SHA}"
+          LATEST="$REGISTRY/$ECR_REPO:latest"
+          docker build -t "$SHA_IMAGE" -t "$LATEST" .
+          docker push "$SHA_IMAGE"
+          docker push "$LATEST"
+          echo "SHA_IMAGE=$SHA_IMAGE" >> "$GITHUB_ENV"
+
+      # Update all five functions to the new image. On the very first push the functions
+      # don't exist yet (Infra hasn't created them) — that's fine, we just seed :latest and
+      # Infra creates them from it. The API also republishes + repoints its warm `live` alias.
+      - name: Update Lambda code (if functions exist)
+        run: |
+          for FN in "$FUNCTION_NAME" wheels-parse wheels-extract wheels-notify; do
+            if aws lambda get-function --function-name "$FN" >/dev/null 2>&1; then
+              aws lambda update-function-code --function-name "$FN" --image-uri "$SHA_IMAGE" >/dev/null
+              aws lambda wait function-updated --function-name "$FN"
+              echo "updated $FN"
+            else
+              echo "skip $FN (not created yet)"
+            fi
+          done
+          if aws lambda get-alias --function-name "$FUNCTION_NAME" --name "$ALIAS" >/dev/null 2>&1; then
+            VERSION=$(aws lambda publish-version --function-name "$FUNCTION_NAME" --query Version --output text)
+            aws lambda update-alias --function-name "$FUNCTION_NAME" --name "$ALIAS" --function-version "$VERSION" >/dev/null
+            echo "repointed $FUNCTION_NAME:$ALIAS -> $VERSION"
+          fi
