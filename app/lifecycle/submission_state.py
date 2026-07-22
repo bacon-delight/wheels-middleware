@@ -46,6 +46,7 @@ class Action(str, Enum):
     CLIENT_APPROVE = "client_approve"
     CLIENT_REQUEST_CHANGES = "client_request_changes"
     REUPLOAD = "reupload"  # analyst re-uploads a document version
+    RESUBMIT_TO_CLIENT = "resubmit_to_client"  # analyst rejects the change request, resubmits
     SANITY_PASS = "sanity_pass"  # system: re-upload passed sanity checks
     SANITY_FAIL = "sanity_fail"  # system: re-upload failed sanity checks
     CAPTURE_FIELDS = "capture_fields"  # system: freeze approved terms snapshot
@@ -85,6 +86,9 @@ TRANSITIONS: tuple[Transition, ...] = (
     ),
     Transition(A.REUPLOAD, S.CHANGES_REQUESTED_CLIENT, S.REVALIDATING, _PROVIDER),
     Transition(A.REUPLOAD, S.VALIDATION_FAILED, S.REVALIDATING, _PROVIDER),
+    Transition(
+        A.RESUBMIT_TO_CLIENT, S.CHANGES_REQUESTED_CLIENT, S.PENDING_CLIENT_APPROVAL, _PROVIDER
+    ),
     Transition(A.SANITY_PASS, S.REVALIDATING, S.EXTRACTING, _SYSTEM),
     Transition(A.SANITY_FAIL, S.REVALIDATING, S.VALIDATION_FAILED, _SYSTEM),
     Transition(A.CAPTURE_FIELDS, S.CLIENT_APPROVED, S.PENDING_FINANCE_APPROVAL, _SYSTEM),

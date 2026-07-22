@@ -25,6 +25,7 @@ from .models import (
     Membership,
     ReviewField,
     Submission,
+    UserProfile,
 )
 
 
@@ -126,6 +127,23 @@ class Repository:
             IndexName="GSI1", KeyConditionExpression=Key("GSI1PK").eq(k.user_gsi1pk(user_id))
         )
         return [i["GSI1SK"].split("#", 1)[1] for i in r.get("Items", [])]
+
+    def list_user_memberships(self, user_id: str) -> list[Membership]:
+        r = self.table.query(
+            IndexName="GSI1", KeyConditionExpression=Key("GSI1PK").eq(k.user_gsi1pk(user_id))
+        )
+        return [
+            self._load(i, Membership) for i in r.get("Items", []) if i.get("type") == "MEMBERSHIP"
+        ]
+
+    # --- User profile ---
+    def get_user_profile(self, user_id: str) -> UserProfile | None:
+        r = self.table.get_item(Key={"PK": k.user_pk(user_id), "SK": k.profile_sk()})
+        return self._load(r.get("Item"), UserProfile)
+
+    def put_user_profile(self, p: UserProfile) -> UserProfile:
+        self._put(self._model_item(p, k.user_pk(p.user_id), k.profile_sk(), "USER_PROFILE"))
+        return p
 
     # --- Submission ---
     def put_submission(self, s: Submission) -> Submission:

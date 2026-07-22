@@ -29,7 +29,17 @@ class Membership(BaseModel):
     email: str
     role: Role
     name: str | None = None
+    phone: str | None = None
     created_at: str
+
+
+class UserProfile(BaseModel):
+    user_id: str
+    email: str
+    name: str | None = None
+    phone: str | None = None
+    onboarded: bool = False
+    updated_at: str | None = None
 
 
 class Submission(BaseModel):
@@ -40,6 +50,7 @@ class Submission(BaseModel):
     msa_document_id: str | None = None
     mla_document_id: str | None = None
     latest_comment: str | None = None
+    client_signature: dict[str, Any] | None = None  # {full_name, place, signed_at}
     created_at: str
     updated_at: str
 
@@ -87,6 +98,7 @@ class AuditEvent(BaseModel):
     ts: str
     actor_id: str
     actor_role: str
+    actor_name: str | None = None
     action: str
     target: str | None = None
     comment: str | None = None

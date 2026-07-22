@@ -117,7 +117,8 @@ def test_full_lifecycle_and_tenancy(ctx):
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
     # Client may only approve/request-changes, and only sees approved fields.
     assert client.get(f"/engagements/{eid}/documents/{did}/versions/1/fields").json()["needs_review_count"] == 0
-    r = client.post(f"/engagements/{eid}/submissions/{sid}:client-approve")
+    r = client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
+                    json={"signature": {"full_name": "Jordan Lee", "place": "Austin, TX"}})
     assert r.json()["submission"]["status"] == "PENDING_FINANCE_APPROVAL"
 
     # Finance (provider role) approves and sets up billing -> ACTIVE.

@@ -11,6 +11,14 @@ def eng_pk(engagement_id: str) -> str:
     return f"ENG#{engagement_id}"
 
 
+def user_pk(user_id: str) -> str:
+    return f"USER#{user_id}"
+
+
+def profile_sk() -> str:
+    return "#PROFILE"
+
+
 def engagement_meta_sk() -> str:
     return "#META"
 

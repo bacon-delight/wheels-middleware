@@ -29,8 +29,8 @@ def _audit(repo: Repository, engagement_id: str, actor: Principal, action: str, 
     repo.put_audit(
         AuditEvent(
             engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
-            actor_id=actor.user_id, actor_role=actor.group_role.value, action=action,
-            target=kw.get("target"), comment=kw.get("comment"),
+            actor_id=actor.user_id, actor_role=actor.group_role.value, actor_name=actor.name,
+            action=action, target=kw.get("target"), comment=kw.get("comment"),
         )
     )
 

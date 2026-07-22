@@ -177,7 +177,8 @@ def patch_field(
     repo.put_audit(
         AuditEvent(
             engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
-            actor_id=principal.user_id, actor_role=member.role.value, action=action,
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name, action=action,
             target=f"{service}/{field_id}",
         )
     )

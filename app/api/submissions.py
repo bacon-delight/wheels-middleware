@@ -27,6 +27,15 @@ class CommentIn(BaseModel):
     comment: str = ""
 
 
+class SignatureIn(BaseModel):
+    full_name: str
+    place: str = ""
+
+
+class ApproveIn(BaseModel):
+    signature: SignatureIn
+
+
 def _apply(
     repo: Repository, principal: Principal, member: Membership, sub: Submission,
     action: Action, comment: str | None = None,
@@ -47,6 +56,7 @@ def _apply(
         AuditEvent(
             engagement_id=sub.engagement_id, event_id=new_id(), ts=utcnow(),
             actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name,
             action=action.value, target=sub.submission_id, comment=comment,
         )
     )
@@ -133,16 +143,63 @@ def submit_to_client(
 
 @router.post("/engagements/{engagement_id}/submissions/{submission_id}:client-approve")
 def client_approve(
-    engagement_id: str, submission_id: str,
+    engagement_id: str, submission_id: str, body: ApproveIn,
     member: Membership = Depends(membership_dep),
     principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
 ):
+    full_name = body.signature.full_name.strip()
+    if not full_name:
+        raise HTTPException(400, "a full-name signature is required to approve")
     sub = _load(repo, engagement_id, submission_id)
-    _apply(repo, principal, member, sub, Action.CLIENT_APPROVE)
+    # Capture the digital signature (typed full name acts as the signature) with date + place.
+    place = body.signature.place.strip()
+    sub.client_signature = {"full_name": full_name, "place": place, "signed_at": utcnow()}
+    repo.put_submission(sub)
+    signed = f"Digitally signed by {full_name}" + (f" at {place}" if place else "")
+    _apply(repo, principal, member, sub, Action.CLIENT_APPROVE, comment=signed)
     # System step: freeze the approved terms and move to finance review.
     sub = _load(repo, engagement_id, submission_id)
     system = _system(engagement_id)
     updated = _apply(repo, principal, system, sub, Action.CAPTURE_FIELDS)
+    return {"submission": updated}
+
+
+@router.post("/engagements/{engagement_id}/submissions/{submission_id}:resubmit-to-client")
+def resubmit_to_client(
+    engagement_id: str, submission_id: str, body: CommentIn,
+    member: Membership = Depends(membership_dep),
+    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+):
+    """Provider declines the client's change request and resubmits the terms with a response."""
+    sub = _load(repo, engagement_id, submission_id)
+    updated = _apply(repo, principal, member, sub, Action.RESUBMIT_TO_CLIENT, body.comment)
+    return {"submission": updated}
+
+
+@router.post("/engagements/{engagement_id}/submissions/{submission_id}:reupload")
+def reupload(
+    engagement_id: str, submission_id: str, body: CommentIn,
+    member: Membership = Depends(membership_dep),
+    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+):
+    """Provider re-uploaded document(s) with the requested change; re-validate + re-extract."""
+    sub = _load(repo, engagement_id, submission_id)
+    updated = _apply(repo, principal, member, sub, Action.REUPLOAD, body.comment)
+    for document_id in (sub.msa_document_id, sub.mla_document_id):
+        if not document_id:
+            continue
+        doc = repo.get_document(engagement_id, document_id)
+        ver = (
+            repo.get_document_version(engagement_id, document_id, doc.current_version)
+            if doc
+            else None
+        )
+        if doc and ver:
+            enqueue_ingest({
+                "engagement_id": engagement_id, "submission_id": submission_id,
+                "document_id": document_id, "version": ver.version,
+                "s3_key": ver.s3_key, "doc_type": doc.doc_type,
+            })
     return {"submission": updated}
 
 
