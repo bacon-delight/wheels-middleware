@@ -14,8 +14,18 @@ class S3Store:
         self.bucket = bucket or settings.docs_bucket
         if client is None:
             import boto3
+            from botocore.config import Config
 
-            client = boto3.client("s3", region_name=settings.core_region)
+            # ap-south-2 (and other newer regions) do NOT serve the global s3.amazonaws.com
+            # endpoint, so presigned URLs must target the REGIONAL endpoint with SigV4 —
+            # otherwise a browser PUT to the presigned URL is rejected with 400.
+            region = settings.core_region
+            client = boto3.client(
+                "s3",
+                region_name=region,
+                endpoint_url=f"https://s3.{region}.amazonaws.com",
+                config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+            )
         self.client = client
 
     def presign_put(
