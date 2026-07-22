@@ -40,30 +40,45 @@ def presign_upload(
 ):
     if body.doc_type not in ("MSA", "MLA"):
         raise HTTPException(400, "doc_type must be MSA or MLA")
-    document_id = new_id()
-    version = 1
-    key = source_pdf_key(engagement_id, document_id, version)
-    repo.put_document(
-        Document(
-            engagement_id=engagement_id, document_id=document_id, doc_type=body.doc_type,
-            filename=body.filename, current_version=version, created_at=utcnow(),
+
+    # Re-uploading a slot creates a NEW VERSION of the same document rather than a duplicate
+    # (a failed first upload must not leave a phantom document behind).
+    sub = repo.get_submission(engagement_id, body.submission_id)
+    slot_id = None
+    if sub is not None:
+        slot_id = sub.msa_document_id if body.doc_type == "MSA" else sub.mla_document_id
+
+    existing = repo.get_document(engagement_id, slot_id) if slot_id else None
+    if existing is not None:
+        document_id = existing.document_id
+        version = existing.current_version + 1
+        existing.current_version = version
+        existing.filename = body.filename
+        repo.put_document(existing)
+    else:
+        document_id = new_id()
+        version = 1
+        repo.put_document(
+            Document(
+                engagement_id=engagement_id, document_id=document_id, doc_type=body.doc_type,
+                filename=body.filename, current_version=version, created_at=utcnow(),
+            )
         )
-    )
+        if sub is not None:
+            if body.doc_type == "MSA":
+                sub.msa_document_id = document_id
+            else:
+                sub.mla_document_id = document_id
+            sub.updated_at = utcnow()
+            repo.put_submission(sub)
+
+    key = source_pdf_key(engagement_id, document_id, version)
     repo.put_document_version(
         DocumentVersion(
             engagement_id=engagement_id, document_id=document_id, version=version,
             s3_key=key, uploaded_at=utcnow(),
         )
     )
-    # Link the document to its submission slot (MSA/MLA).
-    sub = repo.get_submission(engagement_id, body.submission_id)
-    if sub is not None:
-        if body.doc_type == "MSA":
-            sub.msa_document_id = document_id
-        else:
-            sub.mla_document_id = document_id
-        sub.updated_at = utcnow()
-        repo.put_submission(sub)
     return {
         "document_id": document_id,
         "version": version,
