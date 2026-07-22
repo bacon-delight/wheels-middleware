@@ -113,6 +113,30 @@ def get_audit(
     return {"events": repo.list_audit(engagement_id)}
 
 
+@router.get("/engagements/{engagement_id}/billing")
+def get_billing(
+    engagement_id: str,
+    member: Membership = Depends(membership_dep),
+    repo: Repository = Depends(get_repo),
+):
+    subs = repo.list_submissions(engagement_id)
+    sub = subs[0] if subs else None
+    if sub is None:
+        return {"config": None, "status": None}
+    config = None
+    try:
+        import json
+
+        from ..objects import billing_config_key
+        from ..store.s3 import S3Store
+
+        raw = S3Store().get_bytes(billing_config_key(engagement_id, sub.submission_id))
+        config = json.loads(raw)
+    except Exception:  # noqa: BLE001 - config only exists once billing is set up
+        config = None
+    return {"config": config, "status": sub.status.value, "signature": sub.client_signature}
+
+
 @router.post("/engagements/{engagement_id}/invitations", status_code=201)
 def invite_user(
     engagement_id: str,

@@ -118,6 +118,30 @@ TEMPLATES: dict[str, dict] = {
         "text": "Finance requested changes on {engagement_name}. Comments: {comments}. "
         "Open at {engagement_url}",
     },
+    "TERMS_RESUBMITTED": {
+        "recipients": ["client"],
+        "subject": "{engagement_name}: the provider responded to your request",
+        "heading": "The provider responded to your change request",
+        "intro": "Hello {recipient_name},<br><br>{inviter_name} reviewed your change request on "
+        "<strong>{engagement_name}</strong> and has resubmitted the terms for your approval.",
+        "detail": "Their response:<br><br><em>{comments}</em><br><br>Please review the terms again "
+        "and approve, or request further changes.",
+        "cta": ("Review terms", "review_url"),
+        "text": "The provider responded to your change request on {engagement_name}: {comments}. "
+        "Review at {review_url}",
+    },
+    "CHANGES_APPLIED": {
+        "recipients": ["client"],
+        "subject": "{engagement_name}: your requested changes are being applied",
+        "heading": "Your requested changes are being applied",
+        "intro": "Hello {recipient_name},<br><br>{inviter_name} is updating <strong>"
+        "{engagement_name}</strong> with the changes you requested.",
+        "detail": "Their note:<br><br><em>{comments}</em><br><br>You'll be notified when the "
+        "revised terms are ready for your review.",
+        "cta": ("Open engagement", "engagement_url"),
+        "text": "Your requested changes on {engagement_name} are being applied: {comments}. "
+        "{engagement_url}",
+    },
     "BILLING_ACTIVE": {
         "recipients": ["provider", "client", "finance"],
         "subject": "{engagement_name}: terms approved and billing configured",

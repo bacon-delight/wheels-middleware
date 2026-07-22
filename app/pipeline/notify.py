@@ -14,6 +14,8 @@ log = logging.getLogger(__name__)
 _ROUTES: dict[str, tuple[str, list[Role]]] = {
     "submit_to_client": ("TERMS_SUBMITTED_TO_CLIENT", [Role.CLIENT]),
     "client_request_changes": ("CLIENT_CHANGES_REQUESTED", [Role.PROVIDER]),
+    "resubmit_to_client": ("TERMS_RESUBMITTED", [Role.CLIENT]),
+    "reupload": ("CHANGES_APPLIED", [Role.CLIENT]),
     "client_approve": ("CLIENT_APPROVED", [Role.PROVIDER, Role.FINANCE]),
     "capture_fields": ("FINANCE_APPROVAL_NEEDED", [Role.PROVIDER, Role.FINANCE]),
     "finance_request_changes": ("FINANCE_CHANGES_REQUESTED", [Role.PROVIDER]),
@@ -33,7 +35,7 @@ def _context(settings, engagement, detail) -> dict:
     base = f"{settings.ui_url}/engagements/{engagement.engagement_id}"
     return {
         "engagement_name": engagement.name,
-        "inviter_name": "Wheels",
+        "inviter_name": detail.get("actor_name") or "Your provider team",
         "round": detail.get("round", 1),
         "comments": detail.get("comment") or "(no comment provided)",
         "reasons": detail.get("reasons") or "(see the document)",

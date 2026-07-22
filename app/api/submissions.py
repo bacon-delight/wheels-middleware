@@ -64,7 +64,8 @@ def _apply(
         action.value,
         {
             "engagement_id": sub.engagement_id, "submission_id": sub.submission_id,
-            "status": updated.status.value, "actor_role": member.role.value, "comment": comment,
+            "status": updated.status.value, "actor_role": member.role.value,
+            "actor_name": member.name or principal.name, "comment": comment,
         },
     )
     return updated
