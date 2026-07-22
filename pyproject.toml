@@ -20,6 +20,8 @@ api = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
+    "moto[dynamodb]>=5.0",
+    "httpx>=0.27",
 ]
 
 [tool.pytest.ini_options]
@@ -39,9 +41,18 @@ select = ["E", "F", "I", "UP", "B"]
 # our pydantic `use_enum_values=True` round-tripping relies on.
 ignore = ["UP042"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection markers are calls in defaults by design.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "fastapi.Header",
+    "fastapi.File", "fastapi.Form",
+]
+
 [tool.ruff.lint.per-file-ignores]
 # The golden dataset is a dense ground-truth data table; wrapping every FeeItem is noise.
 "tests/golden/ground_truth.py" = ["E501"]
+# Test files favor dense, readable table-style setup over strict wrapping.
+"tests/*" = ["E501"]
 
 [build-system]
 requires = ["setuptools>=68"]

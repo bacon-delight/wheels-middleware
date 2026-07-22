@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
+from .api import api_router
 from .config import get_settings
 
 logging.getLogger().setLevel(logging.INFO)
@@ -50,5 +51,7 @@ def health() -> dict:
 def root() -> dict:
     return {"service": "Wheels Contract Intelligence API", "docs": "/docs"}
 
+
+app.include_router(api_router)
 
 handler = Mangum(app)

@@ -45,6 +45,13 @@ class Settings:
     table_name: str = field(default_factory=lambda: os.getenv("TABLE_NAME", "wheels"))
     docs_bucket: str = field(default_factory=lambda: os.getenv("DOCS_BUCKET", "wheels-docs-local"))
 
+    # --- Auth / UI ---
+    cognito_user_pool_id: str = field(
+        default_factory=lambda: os.getenv("COGNITO_USER_POOL_ID", "")
+    )
+    cognito_client_id: str = field(default_factory=lambda: os.getenv("COGNITO_CLIENT_ID", ""))
+    ui_url: str = field(default_factory=lambda: os.getenv("UI_URL", "https://wheels.logiforma.dev"))
+
     # --- Email ---
     from_email: str = field(
         default_factory=lambda: os.getenv("FROM_EMAIL", "no-reply@logiforma.dev")
