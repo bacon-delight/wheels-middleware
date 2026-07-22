@@ -83,12 +83,24 @@ def get_engagement(
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     submissions = repo.list_submissions(engagement_id)
+    documents = []
+    for d in repo.list_documents(engagement_id):
+        fields = repo.list_fields(engagement_id, d.document_id, d.current_version)
+        elected = [f for f in fields if f.elected]
+        approved = sum(1 for f in elected if f.approved)
+        item = d.model_dump(mode="json")
+        item["review"] = {
+            "approved": approved,
+            "total": len(elected),
+            "pct": round(100 * approved / len(elected)) if elected else 100,
+        }
+        documents.append(item)
     return {
         "engagement": engagement,
         "members": repo.list_members(engagement_id),
         "your_role": member.role,
         "submission": submissions[0] if submissions else None,
-        "documents": repo.list_documents(engagement_id),
+        "documents": documents,
     }
 
 
