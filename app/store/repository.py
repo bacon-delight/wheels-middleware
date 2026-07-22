@@ -143,6 +143,16 @@ class Repository:
         )
         return self._load(r.get("Item"), Submission)
 
+    def list_submissions(self, engagement_id: str) -> list[Submission]:
+        r = self.table.query(
+            KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
+            & Key("SK").begins_with("SUB#"),
+            FilterExpression="#t = :t",
+            ExpressionAttributeNames={"#t": "type"},
+            ExpressionAttributeValues={":t": "SUBMISSION"},
+        )
+        return [self._load(i, Submission) for i in r.get("Items", [])]
+
     def update_submission_status(
         self,
         engagement_id: str,

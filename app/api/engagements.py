@@ -82,10 +82,13 @@ def get_engagement(
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
+    submissions = repo.list_submissions(engagement_id)
     return {
         "engagement": engagement,
         "members": repo.list_members(engagement_id),
         "your_role": member.role,
+        "submission": submissions[0] if submissions else None,
+        "documents": repo.list_documents(engagement_id),
     }
 
 
