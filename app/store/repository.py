@@ -143,15 +143,6 @@ class Repository:
         )
         return self._load(r.get("Item"), Submission)
 
-    def list_audit(self, engagement_id: str, limit: int = 50) -> list[AuditEvent]:
-        r = self.table.query(
-            KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
-            & Key("SK").begins_with("AUD#"),
-            ScanIndexForward=False,
-            Limit=limit,
-        )
-        return [self._load(i, AuditEvent) for i in r.get("Items", [])]
-
     def list_submissions(self, engagement_id: str) -> list[Submission]:
         r = self.table.query(
             KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
