@@ -45,7 +45,11 @@ def _apply(
         target = transition(sub.status, action, member.role)
     except IllegalTransition as e:
         raise HTTPException(409, detail=str(e)) from e
-    extra = {"latest_comment": comment} if comment else None
+    extra = (
+        {"latest_comment": comment, "latest_comment_by": member.name or principal.name}
+        if comment
+        else None
+    )
     try:
         updated = repo.update_submission_status(
             sub.engagement_id, sub.submission_id, sub.status.value, target.value, extra=extra

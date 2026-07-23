@@ -50,6 +50,7 @@ class Submission(BaseModel):
     msa_document_id: str | None = None
     mla_document_id: str | None = None
     latest_comment: str | None = None
+    latest_comment_by: str | None = None  # display name of who left latest_comment
     client_signature: dict[str, Any] | None = None  # {full_name, place, signed_at}
     created_at: str
     updated_at: str
