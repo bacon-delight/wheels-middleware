@@ -67,6 +67,8 @@ class Submission(BaseModel):
     latest_comment: str | None = None
     latest_comment_by: str | None = None  # display name of who left latest_comment
     client_signature: dict[str, Any] | None = None  # {full_name, place, signed_at}
+    change_review: dict[str, Any] | None = None  # cached re-upload vs requested-change assessment
+    nego_summary: dict[str, Any] | None = None  # cached negotiation summary (thread-count keyed)
     created_at: str
     updated_at: str
 

@@ -218,13 +218,18 @@ def update_billing_settings(
     repo: Repository = Depends(get_repo),
     s3: S3Store = Depends(get_s3),
 ):
-    """Set the fleet size and recompute recurring dues from the generated billing config."""
+    """Set the fleet size and recompute recurring dues from the generated billing config.
+
+    Fleet size is finalized during the approval stages; once billing is active it is locked.
+    """
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
-    fleet = max(1, body.fleet_size)
     subs = repo.list_submissions(engagement_id)
     sub = subs[0] if subs else None
+    if sub and sub.status.value in ("BILLING_SETUP", "ACTIVE"):
+        raise HTTPException(409, "fleet size is locked once billing is active")
+    fleet = max(1, body.fleet_size)
     monthly = None
     if sub is not None:
         import json

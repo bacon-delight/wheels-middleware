@@ -179,14 +179,77 @@ def test_finance_dashboard_totals(ctx):
     row = next(r for r in d["engagements"] if r["engagement_id"] == eid)
     assert row["monthly_recurring"] == 400.0 and row["status"] == "ACTIVE"
 
-    # Changing the fleet size recomputes the dues everywhere.
-    client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250})
-    d2 = client.get("/finance/dashboard").json()
-    assert d2["totals"]["monthly_recurring"] == 1000.0  # $4 * 250
+    # Fleet size is locked once billing is active (finalized during the approval stages).
+    assert client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250}).status_code == 409
 
     # Clients may not see the finance dashboard.
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
     assert client.get("/finance/dashboard").status_code == 403
+
+
+def test_fleet_size_locked_once_billing_active(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    # Fleet can no longer be changed once billing is active.
+    assert client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250}).status_code == 409
+
+
+def test_fleet_set_during_approval_drives_dues(ctx):
+    client, repo, state = ctx
+    r = client.post("/engagements", json={"name": "Apex", "client_name": "Apex LLC"})
+    eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
+    repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
+    repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
+    repo.put_field(ReviewField(
+        engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
+        elected=True, confidence=0.95, needs_review=False, approved=True,
+        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    # Fleet is finalized during the approval stage.
+    assert client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250}).status_code == 200
+    client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
+    repo.put_membership(Membership(engagement_id=eid, user_id="client1", email="c@apex.com", role=Role.CLIENT, created_at=utcnow()))
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
+                json={"signature": {"full_name": "Jordan Lee", "place": "Austin"}})
+    _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:finance-approve")
+    client.post(f"/engagements/{eid}/submissions/{sid}:setup-billing")
+    b = client.get(f"/engagements/{eid}/billing").json()
+    assert b["fleet_size"] == 250 and b["monthly_recurring"] == 1000.0  # $4 x 250
+
+
+def test_change_review_and_summary(ctx):
+    client, repo, state = ctx
+    r = client.post("/engagements", json={"name": "Apex", "client_name": "Apex LLC"})
+    eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
+    repo.put_field(ReviewField(
+        engagement_id=eid, document_id=did, version=1, field_id="mnt", service="Maintenance",
+        elected=True, confidence=0.9, needs_review=False,
+        fee_items=[{"amount": 12.5, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    from app.store.models import AuditEvent
+    repo.put_audit(AuditEvent(
+        engagement_id=eid, event_id="a1", ts=utcnow(), actor_id="c", actor_role="client",
+        actor_name="Jordan Lee", action="client_request_changes", comment="reduce maintenance to $10"))
+    # Provider re-uploads a revised version with a partial reduction.
+    client.post(f"/engagements/{eid}/documents:presign",
+                json={"doc_type": "MSA", "filename": "m2.pdf", "submission_id": sid})
+    repo.put_field(ReviewField(
+        engagement_id=eid, document_id=did, version=2, field_id="mnt2", service="Maintenance",
+        elected=True, confidence=0.9, needs_review=False,
+        fee_items=[{"amount": 11.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+
+    cr = client.get(f"/engagements/{eid}/submissions/{sid}/change-review").json()
+    assert cr["applicable"] is True
+    assert any(c["service"] == "Maintenance" for c in cr["changes"])
+    assert cr["items"]  # LLM or deterministic fallback
+
+    s = client.get(f"/engagements/{eid}/summary").json()
+    assert any(t["action"] == "client_request_changes" for t in s["thread"])
+    assert s["summary"]
 
 
 def test_payment_schedule_pay_and_remind(ctx):
