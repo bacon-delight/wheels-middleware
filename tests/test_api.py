@@ -108,8 +108,11 @@ def test_full_lifecycle_and_tenancy(ctx):
     r = client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
     assert r.json()["submission"]["status"] == "PENDING_CLIENT_APPROVAL"
 
-    # A non-member cannot see the engagement (tenant isolation).
+    # Org-level access: a non-member provider (Wheels staff) can open any engagement...
     _as(state, Principal(user_id="stranger", email="s@x.com", groups=["provider"]))
+    assert client.get(f"/engagements/{eid}").status_code == 200
+    # ...but a client who isn't a member of this engagement stays isolated (tenant boundary).
+    _as(state, Principal(user_id="outsider", email="o@other.com", groups=["client"]))
     assert client.get(f"/engagements/{eid}").status_code == 403
 
     # The client user approves -> fields captured -> finance review.
@@ -137,6 +140,70 @@ def test_client_cannot_create_engagement(ctx):
     client, repo, state = ctx
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
     assert client.post("/engagements", json={"name": "X", "client_name": "Y"}).status_code == 403
+
+
+def _drive_to_active(client, repo, state, sid_holder):
+    """Take a fresh engagement to ACTIVE with one $4/vehicle/month recurring fee."""
+    r = client.post("/engagements", json={"name": "Apex", "client_name": "Apex LLC"})
+    eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
+    repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
+    repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
+    repo.put_field(ReviewField(
+        engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
+        elected=True, confidence=0.95, needs_review=False, approved=True,
+        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
+    repo.put_membership(Membership(engagement_id=eid, user_id="client1", email="c@apex.com", role=Role.CLIENT, created_at=utcnow()))
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
+                json={"signature": {"full_name": "Jordan Lee", "place": "Austin"}})
+    _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:finance-approve")
+    client.post(f"/engagements/{eid}/submissions/{sid}:setup-billing")
+    return eid
+
+
+def test_finance_dashboard_totals(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+
+    d = client.get("/finance/dashboard").json()
+    assert d["totals"]["engagements"] == 1
+    assert d["totals"]["active"] == 1
+    assert d["totals"]["monthly_recurring"] == 400.0  # $4 * 100 vehicles
+    assert d["totals"]["annualized"] == 4800.0
+    assert d["totals"]["total_fleet"] == 100
+    assert next(s["count"] for s in d["funnel"] if s["key"] == "active") == 1
+    row = next(r for r in d["engagements"] if r["engagement_id"] == eid)
+    assert row["monthly_recurring"] == 400.0 and row["status"] == "ACTIVE"
+
+    # Changing the fleet size recomputes the dues everywhere.
+    client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250})
+    d2 = client.get("/finance/dashboard").json()
+    assert d2["totals"]["monthly_recurring"] == 1000.0  # $4 * 250
+
+    # Clients may not see the finance dashboard.
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    assert client.get("/finance/dashboard").status_code == 403
+
+
+def test_users_lists_providers_and_client_only_invites(ctx):
+    client, repo, state = ctx
+    # A provider membership (engagement creator) surfaces in the org Users list...
+    repo.put_membership(Membership(engagement_id="e1", user_id="analyst1", email="a@wheels.com",
+                                   role=Role.PROVIDER, name="Ana Lyst", created_at=utcnow()))
+    # ...and a client membership does not.
+    repo.put_membership(Membership(engagement_id="e1", user_id="client9", email="c@apex.com",
+                                   role=Role.CLIENT, created_at=utcnow()))
+    users = client.get("/users").json()["users"]
+    ids = {u["user_id"] for u in users}
+    assert "analyst1" in ids and "client9" not in ids
+
+    # Clients cannot list org users.
+    _as(state, Principal(user_id="client9", email="c@apex.com", groups=["client"]))
+    assert client.get("/users").status_code == 403
 
 
 def test_illegal_transition_returns_409(ctx):

@@ -45,6 +45,22 @@ TEMPLATES: dict[str, dict] = {
         "{role_label}.\nSign in at {login_url} with {recipient_email} and temporary password: "
         "{temp_password}",
     },
+    "PROVIDER_INVITATION": {
+        "recipients": ["invited_user"],
+        "subject": "You've been added to " + BRAND,
+        "heading": "You've been added to " + BRAND,
+        "intro": "Hello {recipient_name},<br><br>{inviter_name} has added you as a "
+        "<strong>Wheels team member</strong> in {brand}. You'll have access to all "
+        "engagements, the review workflow, and the finance dashboard.",
+        "detail": "Sign in with your email (<strong>{recipient_email}</strong>) and this "
+        "temporary password. You'll be asked to set a new password on first login:"
+        "<br><br><span style=\"font-family:monospace;font-size:18px;letter-spacing:1px;"
+        "background:#F1F5F7;padding:8px 14px;border-radius:6px;display:inline-block\">"
+        "{temp_password}</span>",
+        "cta": ("Sign in", "login_url"),
+        "text": "You've been added to {brand} by {inviter_name} as a Wheels team member.\n"
+        "Sign in at {login_url} with {recipient_email} and temporary password: {temp_password}",
+    },
     "TERMS_SUBMITTED_TO_CLIENT": {
         "recipients": ["client"],
         "subject": "Action needed: review the billing terms for {engagement_name}",

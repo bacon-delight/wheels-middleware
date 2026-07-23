@@ -56,6 +56,8 @@ def _apply(
         )
     except ConflictError as e:
         raise HTTPException(409, detail=str(e)) from e
+    # Denormalize the lifecycle status onto the engagement (drives lists + finance dashboard).
+    repo.set_engagement_status(sub.engagement_id, updated.status.value)
     repo.put_audit(
         AuditEvent(
             engagement_id=sub.engagement_id, event_id=new_id(), ts=utcnow(),
@@ -253,8 +255,15 @@ def setup_billing(
     sub = _load(repo, engagement_id, submission_id)
     _apply(repo, principal, member, sub, Action.SETUP_BILLING)
     from ..billing.config_builder import build_billing_config
+    from ..billing.estimate import compute_monthly_recurring
 
-    build_billing_config(repo, engagement_id, submission_id, s3=s3)
+    config = build_billing_config(repo, engagement_id, submission_id, s3=s3)
+    # Compute recurring dues at the engagement's fleet size for the finance dashboard + client.
+    engagement = repo.get_engagement(engagement_id)
+    fleet = engagement.fleet_size if engagement else 100
+    repo.set_engagement_billing(
+        engagement_id, fleet, compute_monthly_recurring(config, fleet)
+    )
     sub = _load(repo, engagement_id, submission_id)
     system = _system(engagement_id)
     updated = _apply(repo, principal, system, sub, Action.BILLING_DONE)

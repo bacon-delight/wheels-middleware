@@ -5,11 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth.deps import get_principal, get_repo, membership_dep, require_provider
+from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
 from ..lifecycle.submission_state import Role
 from ..store.models import AuditEvent, Engagement, Membership, Submission
 from ..store.repository import Repository, new_id, utcnow
+from ..store.s3 import S3Store
 
 router = APIRouter(tags=["engagements"])
 
@@ -21,8 +22,11 @@ class CreateEngagementIn(BaseModel):
 
 class InviteIn(BaseModel):
     email: str
-    role: Role
     name: str | None = None
+
+
+class FleetIn(BaseModel):
+    fleet_size: int
 
 
 def _audit(repo: Repository, engagement_id: str, actor: Principal, action: str, **kw) -> None:
@@ -68,8 +72,13 @@ def create_engagement(
 def list_engagements(
     principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo)
 ):
-    ids = repo.list_user_engagement_ids(principal.user_id)
-    engagements = [e for e in (repo.get_engagement(i) for i in ids) if e is not None]
+    # Provider-side staff are org-level and see every engagement; clients see only theirs.
+    if principal.is_provider:
+        engagements = repo.list_all_engagements()
+    else:
+        ids = repo.list_user_engagement_ids(principal.user_id)
+        engagements = [e for e in (repo.get_engagement(i) for i in ids) if e is not None]
+    engagements.sort(key=lambda e: e.created_at, reverse=True)
     return {"engagements": engagements}
 
 
@@ -118,23 +127,32 @@ def get_billing(
     engagement_id: str,
     member: Membership = Depends(membership_dep),
     repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
 ):
+    engagement = repo.get_engagement(engagement_id)
+    fleet_size = engagement.fleet_size if engagement else 100
+    monthly_recurring = engagement.monthly_recurring if engagement else None
     subs = repo.list_submissions(engagement_id)
     sub = subs[0] if subs else None
     if sub is None:
-        return {"config": None, "status": None}
+        return {"config": None, "status": None, "fleet_size": fleet_size}
     config = None
     try:
         import json
 
         from ..objects import billing_config_key
-        from ..store.s3 import S3Store
 
-        raw = S3Store().get_bytes(billing_config_key(engagement_id, sub.submission_id))
+        raw = s3.get_bytes(billing_config_key(engagement_id, sub.submission_id))
         config = json.loads(raw)
     except Exception:  # noqa: BLE001 - config only exists once billing is set up
         config = None
-    return {"config": config, "status": sub.status.value, "signature": sub.client_signature}
+    return {
+        "config": config,
+        "status": sub.status.value,
+        "signature": sub.client_signature,
+        "fleet_size": fleet_size,
+        "monthly_recurring": monthly_recurring,
+    }
 
 
 @router.post("/engagements/{engagement_id}/invitations", status_code=201)
@@ -151,11 +169,43 @@ def invite_user(
     from ..invites import create_and_invite
 
     try:
+        # Engagement-level invites are always client reviewers; provider staff are org-level.
         invited = create_and_invite(
-            repo, engagement, body.email, body.role,
+            repo, engagement, body.email, Role.CLIENT,
             inviter_name=principal.name or principal.email, name=body.name,
         )
     except Exception as e:  # noqa: BLE001 - surface Cognito/SES failures as a clean 400
         raise HTTPException(400, f"invite failed: {e}") from e
     _audit(repo, engagement_id, principal, "user_invited", target=body.email)
     return {"membership": invited}
+
+
+@router.patch("/engagements/{engagement_id}/billing")
+def update_billing_settings(
+    engagement_id: str,
+    body: FleetIn,
+    member: Membership = Depends(require_provider),
+    repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
+):
+    """Set the fleet size and recompute recurring dues from the generated billing config."""
+    engagement = repo.get_engagement(engagement_id)
+    if engagement is None:
+        raise HTTPException(404, "engagement not found")
+    fleet = max(1, body.fleet_size)
+    subs = repo.list_submissions(engagement_id)
+    sub = subs[0] if subs else None
+    monthly = None
+    if sub is not None:
+        import json
+
+        from ..billing.estimate import compute_monthly_recurring
+        from ..objects import billing_config_key
+
+        try:
+            raw = s3.get_bytes(billing_config_key(engagement_id, sub.submission_id))
+            monthly = compute_monthly_recurring(json.loads(raw), fleet)
+        except Exception:  # noqa: BLE001 - config only exists once billing is set up
+            monthly = None
+    repo.set_engagement_billing(engagement_id, fleet, monthly)
+    return {"fleet_size": fleet, "monthly_recurring": monthly}

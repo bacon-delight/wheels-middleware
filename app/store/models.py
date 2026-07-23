@@ -18,8 +18,21 @@ class Engagement(BaseModel):
     engagement_id: str
     name: str
     client_name: str
-    status: str = "onboarding"  # engagement-level lifecycle label
+    status: str = "DRAFT"  # denormalized submission lifecycle status (for lists + finance)
+    fleet_size: int = 100  # vehicles under management; drives recurring dues
+    monthly_recurring: float | None = None  # computed at billing setup / fleet change
     created_by: str
+    created_at: str
+
+
+class ProviderUser(BaseModel):
+    """Org-level (Wheels-side) provider directory entry — not scoped to any engagement."""
+
+    user_id: str
+    email: str
+    name: str | None = None
+    phone: str | None = None
+    onboarded: bool = False
     created_at: str
 
 

@@ -19,6 +19,10 @@ def profile_sk() -> str:
     return "#PROFILE"
 
 
+def org_providers_pk() -> str:
+    return "ORG#PROVIDERS"
+
+
 def engagement_meta_sk() -> str:
     return "#META"
 

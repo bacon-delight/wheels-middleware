@@ -12,7 +12,7 @@ import string
 
 from .config import Settings, get_settings
 from .lifecycle.submission_state import Role
-from .store.models import Engagement, Membership
+from .store.models import Engagement, Membership, ProviderUser
 from .store.repository import Repository, utcnow
 
 
@@ -88,3 +88,51 @@ def create_and_invite(
         login_url=f"{settings.ui_url}/login",
     )
     return membership
+
+
+def create_provider_user(
+    repo: Repository,
+    email: str,
+    inviter_name: str,
+    name: str | None = None,
+    settings: Settings | None = None,
+) -> ProviderUser:
+    """Create an org-level (Wheels-side) provider user — not tied to any engagement."""
+    settings = settings or get_settings()
+    import boto3
+
+    cog = boto3.client("cognito-idp", region_name=settings.core_region)
+    temp = _temp_password()
+    attrs = [
+        {"Name": "email", "Value": email},
+        {"Name": "email_verified", "Value": "true"},
+    ]
+    if name:
+        attrs.append({"Name": "name", "Value": name})
+    resp = cog.admin_create_user(
+        UserPoolId=settings.cognito_user_pool_id,
+        Username=email,
+        UserAttributes=attrs,
+        TemporaryPassword=temp,
+        MessageAction="SUPPRESS",
+    )
+    sub = next(a["Value"] for a in resp["User"]["Attributes"] if a["Name"] == "sub")
+    cog.admin_add_user_to_group(
+        UserPoolId=settings.cognito_user_pool_id, Username=email, GroupName="provider"
+    )
+    provider = repo.put_provider_user(
+        ProviderUser(user_id=sub, email=email, name=name, created_at=utcnow())
+    )
+
+    from .notify.emailer import Emailer
+
+    Emailer(settings).send(
+        to=email,
+        template="PROVIDER_INVITATION",
+        recipient_name=name or email,
+        recipient_email=email,
+        inviter_name=inviter_name,
+        temp_password=temp,
+        login_url=f"{settings.ui_url}/login",
+    )
+    return provider

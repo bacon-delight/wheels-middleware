@@ -16,6 +16,7 @@ from typing import Any
 from boto3.dynamodb.conditions import Key
 
 from ..config import get_settings
+from ..lifecycle.submission_state import Role
 from . import keys as k
 from .models import (
     AuditEvent,
@@ -23,6 +24,7 @@ from .models import (
     DocumentVersion,
     Engagement,
     Membership,
+    ProviderUser,
     ReviewField,
     Submission,
     UserProfile,
@@ -83,6 +85,22 @@ class Repository:
             data.pop(meta, None)
         return model_cls.model_validate(data)
 
+    def _scan_by_type(self, type_: str) -> list[dict[str, Any]]:
+        """Paginated scan filtered to one item type (org-level, low-volume aggregation)."""
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "FilterExpression": "#t = :t",
+            "ExpressionAttributeNames": {"#t": "type"},
+            "ExpressionAttributeValues": {":t": type_},
+        }
+        while True:
+            r = self.table.scan(**kwargs)
+            items.extend(r.get("Items", []))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                return items
+            kwargs["ExclusiveStartKey"] = lek
+
     # --- Engagement ---
     def put_engagement(self, e: Engagement) -> Engagement:
         self._put(
@@ -98,6 +116,35 @@ class Repository:
             Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()}
         )
         return self._load(r.get("Item"), Engagement)
+
+    def list_all_engagements(self) -> list[Engagement]:
+        """Every engagement in the org (finance/provider org-level view). Small-scale scan."""
+        items = self._scan_by_type("ENGAGEMENT")
+        return [self._load(i, Engagement) for i in items]
+
+    def list_all_submissions(self) -> list[Submission]:
+        """Every submission across the org (finance dashboard status join). Small-scale scan."""
+        return [self._load(i, Submission) for i in self._scan_by_type("SUBMISSION")]
+
+    def set_engagement_status(self, engagement_id: str, status: str) -> None:
+        """Denormalize the submission lifecycle status onto the engagement meta."""
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET #s = :s",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={":s": status},
+        )
+
+    def set_engagement_billing(
+        self, engagement_id: str, fleet_size: int, monthly_recurring: float | None
+    ) -> None:
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET fleet_size = :f, monthly_recurring = :m",
+            ExpressionAttributeValues=_to_decimal(
+                {":f": fleet_size, ":m": monthly_recurring}
+            ),
+        )
 
     # --- Membership ---
     def put_membership(self, m: Membership) -> Membership:
@@ -144,6 +191,33 @@ class Repository:
     def put_user_profile(self, p: UserProfile) -> UserProfile:
         self._put(self._model_item(p, k.user_pk(p.user_id), k.profile_sk(), "USER_PROFILE"))
         return p
+
+    # --- Org-level provider directory ---
+    def put_provider_user(self, pu: ProviderUser) -> ProviderUser:
+        self._put(
+            self._model_item(
+                pu, k.org_providers_pk(), k.membership_sk(pu.user_id), "PROVIDER_DIR"
+            )
+        )
+        return pu
+
+    def get_provider_user(self, user_id: str) -> ProviderUser | None:
+        r = self.table.get_item(
+            Key={"PK": k.org_providers_pk(), "SK": k.membership_sk(user_id)}
+        )
+        return self._load(r.get("Item"), ProviderUser)
+
+    def list_provider_directory(self) -> list[ProviderUser]:
+        r = self.table.query(
+            KeyConditionExpression=Key("PK").eq(k.org_providers_pk())
+            & Key("SK").begins_with("USER#")
+        )
+        return [self._load(i, ProviderUser) for i in r.get("Items", [])]
+
+    def list_all_provider_memberships(self) -> list[Membership]:
+        """Provider/finance memberships across all engagements (to backfill the directory)."""
+        members = [self._load(i, Membership) for i in self._scan_by_type("MEMBERSHIP")]
+        return [m for m in members if m.role in (Role.PROVIDER, Role.FINANCE)]
 
     # --- Submission ---
     def put_submission(self, s: Submission) -> Submission:

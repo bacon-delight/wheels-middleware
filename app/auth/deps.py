@@ -15,7 +15,7 @@ from fastapi import Depends, HTTPException, Request
 
 from ..lifecycle.submission_state import Role
 from ..store.models import Membership
-from ..store.repository import Repository
+from ..store.repository import Repository, utcnow
 from ..store.s3 import S3Store
 from .principal import Principal
 
@@ -60,14 +60,35 @@ def membership_dep(
     principal: Principal = Depends(get_principal),
     repo: Repository = Depends(get_repo),
 ) -> Membership:
-    """Enforce that the caller belongs to the engagement in the path (tenant boundary)."""
+    """Enforce tenancy: clients must be members; providers are org-level and see everything.
+
+    Client users are pinned to the engagement(s) they were invited to. Provider-side (Wheels)
+    staff are managed org-wide (see the Users page), so any provider may open any engagement —
+    we synthesize a membership for them when they aren't an explicit member.
+    """
     m = repo.get_membership(engagement_id, principal.user_id)
-    if m is None:
-        raise HTTPException(status_code=403, detail="not a member of this engagement")
-    return m
+    if m is not None:
+        return m
+    if principal.is_provider:
+        name = principal.name
+        if not name:
+            prof = repo.get_user_profile(principal.user_id)
+            name = prof.name if prof else None
+        return Membership(
+            engagement_id=engagement_id, user_id=principal.user_id, email=principal.email,
+            role=principal.group_role, name=name, created_at=utcnow(),
+        )
+    raise HTTPException(status_code=403, detail="not a member of this engagement")
 
 
 def require_provider(member: Membership = Depends(membership_dep)) -> Membership:
     if member.role not in (Role.PROVIDER, Role.FINANCE):
         raise HTTPException(status_code=403, detail="provider role required")
     return member
+
+
+def require_provider_principal(principal: Principal = Depends(get_principal)) -> Principal:
+    """Guard org-level (not engagement-scoped) endpoints: Users, finance dashboard."""
+    if not principal.is_provider:
+        raise HTTPException(status_code=403, detail="provider role required")
+    return principal
