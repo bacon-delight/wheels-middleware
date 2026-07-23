@@ -51,6 +51,14 @@ def test_client_request_changes_reupload_loop():
     assert s == SubmissionStatus.EXTRACTING
 
 
+def test_reupload_allowed_during_underwriting():
+    """A wrong / outdated document can be replaced while still under analyst review."""
+    s = SubmissionStatus.IN_UNDERWRITING
+    assert role_can(s, Action.REUPLOAD, Role.PROVIDER)
+    assert not role_can(s, Action.REUPLOAD, Role.CLIENT)
+    assert transition(s, Action.REUPLOAD, Role.PROVIDER) == SubmissionStatus.REVALIDATING
+
+
 def test_illegal_transition_rejected():
     with pytest.raises(IllegalTransition):
         transition(SubmissionStatus.DRAFT, Action.CLIENT_APPROVE, Role.CLIENT)

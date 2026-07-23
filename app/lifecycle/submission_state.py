@@ -86,6 +86,8 @@ TRANSITIONS: tuple[Transition, ...] = (
     ),
     Transition(A.REUPLOAD, S.CHANGES_REQUESTED_CLIENT, S.REVALIDATING, _PROVIDER),
     Transition(A.REUPLOAD, S.VALIDATION_FAILED, S.REVALIDATING, _PROVIDER),
+    # Replace a wrong / outdated document while still under analyst review.
+    Transition(A.REUPLOAD, S.IN_UNDERWRITING, S.REVALIDATING, _PROVIDER),
     Transition(
         A.RESUBMIT_TO_CLIENT, S.CHANGES_REQUESTED_CLIENT, S.PENDING_CLIENT_APPROVAL, _PROVIDER
     ),
