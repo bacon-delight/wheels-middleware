@@ -24,6 +24,7 @@ from .models import (
     DocumentVersion,
     Engagement,
     Membership,
+    Payment,
     ProviderUser,
     ReviewField,
     Submission,
@@ -145,6 +146,38 @@ class Repository:
                 {":f": fleet_size, ":m": monthly_recurring}
             ),
         )
+
+    def set_engagement_schedule(
+        self, engagement_id: str, billing_start: str, billing_frequency: str
+    ) -> None:
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET billing_start = :s, billing_frequency = :f",
+            ExpressionAttributeValues={":s": billing_start, ":f": billing_frequency},
+        )
+
+    # --- Payments (billing schedule) ---
+    def put_payment(self, p: Payment) -> Payment:
+        self._put(
+            self._model_item(p, k.eng_pk(p.engagement_id), k.payment_sk(p.seq), "PAYMENT")
+        )
+        return p
+
+    def get_payment(self, engagement_id: str, seq: int) -> Payment | None:
+        r = self.table.get_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.payment_sk(seq)}
+        )
+        return self._load(r.get("Item"), Payment)
+
+    def list_payments(self, engagement_id: str) -> list[Payment]:
+        r = self.table.query(
+            KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
+            & Key("SK").begins_with("PAY#")
+        )
+        return [self._load(i, Payment) for i in r.get("Items", [])]
+
+    def list_all_payments(self) -> list[Payment]:
+        return [self._load(i, Payment) for i in self._scan_by_type("PAYMENT")]
 
     # --- Membership ---
     def put_membership(self, m: Membership) -> Membership:

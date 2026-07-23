@@ -55,6 +55,10 @@ def approved_sk(submission_id: str) -> str:
     return f"SUB#{submission_id}#APPROVED"
 
 
+def payment_sk(seq: int) -> str:
+    return f"PAY#{seq:04d}"
+
+
 # --- GSI1 (overloaded) ---
 def user_gsi1pk(user_id: str) -> str:
     return f"USER#{user_id}"

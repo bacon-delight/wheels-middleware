@@ -254,7 +254,7 @@ def setup_billing(
 ):
     sub = _load(repo, engagement_id, submission_id)
     _apply(repo, principal, member, sub, Action.SETUP_BILLING)
-    from ..billing.config_builder import build_billing_config
+    from ..billing.config_builder import build_billing_config, ensure_schedule
     from ..billing.estimate import compute_monthly_recurring
 
     config = build_billing_config(repo, engagement_id, submission_id, s3=s3)
@@ -264,6 +264,10 @@ def setup_billing(
     repo.set_engagement_billing(
         engagement_id, fleet, compute_monthly_recurring(config, fleet)
     )
+    # Build the dated payment schedule (initial + recurring) so the client can start paying.
+    engagement = repo.get_engagement(engagement_id)
+    if engagement:
+        ensure_schedule(repo, engagement, submission_id, config)
     sub = _load(repo, engagement_id, submission_id)
     system = _system(engagement_id)
     updated = _apply(repo, principal, system, sub, Action.BILLING_DONE)

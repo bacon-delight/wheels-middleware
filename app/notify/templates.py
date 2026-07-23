@@ -87,6 +87,19 @@ TEMPLATES: dict[str, dict] = {
         "text": "The client requested changes on {engagement_name} (round {round}). "
         "Comments: {comments}. Re-upload the document(s) at {engagement_url}",
     },
+    "CLIENT_CHANGES_ACK": {
+        "recipients": ["client"],
+        "subject": "{engagement_name}: we received your change request",
+        "heading": "We received your change request",
+        "intro": "Hello {recipient_name},<br><br>Thanks — your requested changes to <strong>"
+        "{engagement_name}</strong> have been sent to the provider team.",
+        "detail": "Your comments:<br><br><em>{comments}</em><br><br>The team will review and get "
+        "back to you with an updated agreement or a response. Nothing more is needed from you "
+        "right now.",
+        "cta": ("View engagement", "engagement_url"),
+        "text": "We received your change request for {engagement_name}: {comments}. The provider "
+        "team will respond with an update. {engagement_url}",
+    },
     "VALIDATION_FAILED": {
         "recipients": ["provider", "analyst"],
         "subject": "{engagement_name}: re-uploaded document failed validation",
@@ -99,24 +112,24 @@ TEMPLATES: dict[str, dict] = {
         "text": "The re-uploaded document for {engagement_name} failed validation: {reasons}. "
         "Correct and re-upload at {engagement_url}",
     },
-    "CLIENT_APPROVED": {
-        "recipients": ["provider", "analyst", "finance"],
-        "subject": "{engagement_name}: client approved the terms",
-        "heading": "The client approved the terms",
-        "intro": "Hello {recipient_name},<br><br>Good news — the client has approved the "
-        "billing terms for <strong>{engagement_name}</strong>. The approved terms are now "
-        "captured and locked for finance review.",
-        "detail": "Next step: finance validates the captured terms before billing is set up.",
-        "cta": ("Review for finance", "finance_url"),
-        "text": "The client approved the terms for {engagement_name}. They are captured and "
-        "await finance validation at {finance_url}",
+    "CLIENT_APPROVAL_ACK": {
+        "recipients": ["client"],
+        "subject": "{engagement_name}: thanks — your approval is recorded",
+        "heading": "Your approval is recorded",
+        "intro": "Hello {recipient_name},<br><br>Thanks for approving the billing terms for "
+        "<strong>{engagement_name}</strong>. Your electronic signature has been recorded.",
+        "detail": "Our finance team will complete a final validation and set up billing. You'll "
+        "get an email when your payment schedule is ready — nothing more is needed from you now.",
+        "cta": ("View engagement", "engagement_url"),
+        "text": "Thanks for approving the terms for {engagement_name}. Finance will validate and "
+        "set up billing; we'll email you when your payment schedule is ready. {engagement_url}",
     },
     "FINANCE_APPROVAL_NEEDED": {
         "recipients": ["finance"],
         "subject": "Finance review needed: {engagement_name}",
         "heading": "Terms are ready for finance validation",
-        "intro": "Hello {recipient_name},<br><br>The client-approved terms for <strong>"
-        "{engagement_name}</strong> are ready for your validation.",
+        "intro": "Hello {recipient_name},<br><br>The client has approved the terms for <strong>"
+        "{engagement_name}</strong>; they are now captured and ready for your finance validation.",
         "detail": "Review the captured terms and either approve to set up billing, or request "
         "changes.",
         "cta": ("Validate terms", "finance_url"),
@@ -158,18 +171,65 @@ TEMPLATES: dict[str, dict] = {
         "text": "Your requested changes on {engagement_name} are being applied: {comments}. "
         "{engagement_url}",
     },
-    "BILLING_ACTIVE": {
-        "recipients": ["provider", "client", "finance"],
-        "subject": "{engagement_name}: terms approved and billing configured",
-        "heading": "Approved — billing is configured",
+    "BILLING_ACTIVE_CLIENT": {
+        "recipients": ["client"],
+        "subject": "Action needed: your billing is active for {engagement_name}",
+        "heading": "Your billing is active",
         "intro": "Hello {recipient_name},<br><br>The billing terms for <strong>"
-        "{engagement_name}</strong> are fully approved and the billing configuration has been "
-        "generated automatically from the approved terms.",
-        "detail": "No manual keying was required. You can view the final approved terms any "
-        "time from your dashboard.",
-        "cta": ("View approved terms", "engagement_url"),
-        "text": "The terms for {engagement_name} are approved and billing is configured. "
-        "View them at {engagement_url}",
+        "{engagement_name}</strong> are fully approved and your account is now active.",
+        "detail": "Your payment schedule is ready. Please review it and make your first payment. "
+        "You can pay each installment on its due date, or pay the next one early if you prefer.",
+        "cta": ("View schedule & pay", "billing_url"),
+        "text": "Your billing for {engagement_name} is active. Review your payment schedule and "
+        "make your first payment at {billing_url}",
+    },
+    "BILLING_CONFIGURED_PROVIDER": {
+        "recipients": ["provider", "finance"],
+        "subject": "{engagement_name}: billing configured — engagement is active",
+        "heading": "Billing configured — engagement is active",
+        "intro": "Hello {recipient_name},<br><br>The billing configuration for <strong>"
+        "{engagement_name}</strong> was generated from the approved terms and the engagement is "
+        "now active.",
+        "detail": "The client has been sent their payment schedule. You can track payments and "
+        "send reminders from the billing page.",
+        "cta": ("Open billing", "billing_url"),
+        "text": "Billing for {engagement_name} is configured and the engagement is active. "
+        "Track payments at {billing_url}",
+    },
+    "PAYMENT_REMINDER": {
+        "recipients": ["client"],
+        "subject": "Payment reminder: {period} for {engagement_name}",
+        "heading": "A payment reminder",
+        "intro": "Hello {recipient_name},<br><br>{sender_name} would like to remind you that your "
+        "payment for <strong>{engagement_name}</strong> {status_phrase}.",
+        "detail": "<strong>{period}</strong> — {amount}, due {due_date}.<br><br>Please make the "
+        "payment at your earliest convenience.",
+        "cta": ("Pay now", "billing_url"),
+        "text": "Reminder: your payment for {engagement_name} {status_phrase}. {period} — "
+        "{amount}, due {due_date}. Pay at {billing_url}",
+    },
+    "PAYMENT_CONFIRMATION": {
+        "recipients": ["client"],
+        "subject": "Payment received: {amount} for {engagement_name}",
+        "heading": "Payment received — thank you",
+        "intro": "Hello {recipient_name},<br><br>We've received your payment for <strong>"
+        "{engagement_name}</strong>. Thank you.",
+        "detail": "<strong>{period}</strong> — {amount}, due {due_date}. This installment is now "
+        "marked as paid.",
+        "cta": ("View schedule", "billing_url"),
+        "text": "Payment received for {engagement_name}: {period} — {amount}. Thank you. "
+        "{billing_url}",
+    },
+    "PAYMENT_RECEIVED": {
+        "recipients": ["provider", "finance"],
+        "subject": "{engagement_name}: payment received ({amount})",
+        "heading": "A payment was received",
+        "intro": "Hello {recipient_name},<br><br>{payer_name} paid an installment for <strong>"
+        "{engagement_name}</strong>.",
+        "detail": "<strong>{period}</strong> — {amount}, due {due_date}.",
+        "cta": ("Open billing", "billing_url"),
+        "text": "Payment received for {engagement_name}: {period} — {amount} from {payer_name}. "
+        "{billing_url}",
     },
 }
 

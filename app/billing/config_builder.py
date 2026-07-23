@@ -7,10 +7,13 @@ would consume this artifact.
 
 from __future__ import annotations
 
+import datetime
 from typing import Any
 
 from ..objects import billing_config_key
+from ..store.models import Engagement, Payment
 from ..store.repository import Repository, utcnow
+from .schedule import generate_rows, normalize_frequency
 
 
 def build_billing_config(
@@ -55,3 +58,44 @@ def build_billing_config(
         s3 = S3Store()
     s3.put_json(billing_config_key(engagement_id, submission_id), config)
     return config
+
+
+def _billing_start(engagement: Engagement | None, config: dict[str, Any] | None,
+                   today: datetime.date) -> datetime.date:
+    if engagement and engagement.billing_start:
+        return datetime.date.fromisoformat(engagement.billing_start[:10])
+    candidates = [(config or {}).get("generated_at")]
+    if engagement:
+        candidates.append(engagement.created_at)
+    for candidate in candidates:
+        if candidate:
+            try:
+                return datetime.datetime.fromisoformat(candidate).date()
+            except ValueError:
+                continue
+    return today
+
+
+def ensure_schedule(
+    repo: Repository,
+    engagement: Engagement,
+    submission_id: str,
+    config: dict[str, Any] | None,
+    today: datetime.date | None = None,
+) -> list[Payment]:
+    """Generate + persist the payment schedule once; idempotent (returns existing if present)."""
+    existing = repo.list_payments(engagement.engagement_id)
+    if existing:
+        return sorted(existing, key=lambda p: p.seq)
+    today = today or datetime.date.today()
+    start = _billing_start(engagement, config, today)
+    frequency = normalize_frequency(config)
+    payments = []
+    for row in generate_rows(start, frequency):
+        payments.append(
+            repo.put_payment(
+                Payment(engagement_id=engagement.engagement_id, submission_id=submission_id, **row)
+            )
+        )
+    repo.set_engagement_schedule(engagement.engagement_id, start.isoformat(), frequency)
+    return payments

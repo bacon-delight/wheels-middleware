@@ -20,9 +20,17 @@ SAMPLE_CTX = {
     "review_url": "https://wheels.logiforma.dev/e/apex/review",
     "engagement_url": "https://wheels.logiforma.dev/e/apex",
     "finance_url": "https://wheels.logiforma.dev/e/apex/finance",
+    "billing_url": "https://wheels.logiforma.dev/e/apex/billing",
     "round": 2,
     "comments": "Please reduce the maintenance management fee to $10.50.",
     "reasons": "Uploaded document is an MSA, but this slot expects the MLA.",
+    # Payment emails
+    "amount": "$400.00",
+    "period": "March 2026",
+    "due_date": "15 Mar 2026",
+    "payer_name": "Jordan Lee",
+    "sender_name": "Sam Rivera",
+    "status_phrase": "is overdue",
 }
 
 _PLACEHOLDER = re.compile(r"\{[a-z_]+\}")

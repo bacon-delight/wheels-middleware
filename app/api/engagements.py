@@ -146,12 +146,42 @@ def get_billing(
         config = json.loads(raw)
     except Exception:  # noqa: BLE001 - config only exists once billing is set up
         config = None
+
+    # Payment schedule (only once billing is active); backfill legacy engagements on read.
+    schedule: list = []
+    summary: dict = {}
+    frequency = engagement.billing_frequency if engagement else "monthly"
+    if config and engagement and sub.status.value in ("BILLING_SETUP", "ACTIVE"):
+        import datetime
+
+        from ..billing.config_builder import ensure_schedule
+        from ..billing.estimate import compute_monthly_recurring
+        from ..billing.schedule import enrich, summarize
+
+        # Self-heal engagements set up before recurring dues were persisted.
+        if engagement.monthly_recurring is None:
+            repo.set_engagement_billing(
+                engagement_id, engagement.fleet_size,
+                compute_monthly_recurring(config, engagement.fleet_size),
+            )
+        payments = ensure_schedule(repo, engagement, sub.submission_id, config)
+        engagement = repo.get_engagement(engagement_id)  # pick up billing_start/frequency/dues
+        frequency = engagement.billing_frequency
+        monthly_recurring = engagement.monthly_recurring
+        fleet_size = engagement.fleet_size
+        schedule = enrich(
+            payments, engagement.monthly_recurring, frequency, datetime.date.today()
+        )
+        summary = summarize(schedule)
     return {
         "config": config,
         "status": sub.status.value,
         "signature": sub.client_signature,
         "fleet_size": fleet_size,
         "monthly_recurring": monthly_recurring,
+        "frequency": frequency,
+        "schedule": schedule,
+        "summary": summary,
     }
 
 

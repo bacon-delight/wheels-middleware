@@ -10,17 +10,25 @@ from ..store.repository import Repository
 
 log = logging.getLogger(__name__)
 
-# transition action -> (email template, recipient roles)
-_ROUTES: dict[str, tuple[str, list[Role]]] = {
-    "submit_to_client": ("TERMS_SUBMITTED_TO_CLIENT", [Role.CLIENT]),
-    "client_request_changes": ("CLIENT_CHANGES_REQUESTED", [Role.PROVIDER]),
-    "resubmit_to_client": ("TERMS_RESUBMITTED", [Role.CLIENT]),
-    "reupload": ("CHANGES_APPLIED", [Role.CLIENT]),
-    "client_approve": ("CLIENT_APPROVED", [Role.PROVIDER, Role.FINANCE]),
-    "capture_fields": ("FINANCE_APPROVAL_NEEDED", [Role.PROVIDER, Role.FINANCE]),
-    "finance_request_changes": ("FINANCE_CHANGES_REQUESTED", [Role.PROVIDER]),
-    "sanity_fail": ("VALIDATION_FAILED", [Role.PROVIDER]),
-    "billing_done": ("BILLING_ACTIVE", [Role.PROVIDER, Role.CLIENT, Role.FINANCE]),
+# transition action -> list of (email template, recipient roles). Each step notifies both the
+# party who must act next AND, where useful, the other side with a relevant confirmation.
+_PROVIDER = [Role.PROVIDER, Role.FINANCE]
+_ROUTES: dict[str, list[tuple[str, list[Role]]]] = {
+    "submit_to_client": [("TERMS_SUBMITTED_TO_CLIENT", [Role.CLIENT])],
+    "client_request_changes": [
+        ("CLIENT_CHANGES_REQUESTED", _PROVIDER),
+        ("CLIENT_CHANGES_ACK", [Role.CLIENT]),
+    ],
+    "resubmit_to_client": [("TERMS_RESUBMITTED", [Role.CLIENT])],
+    "reupload": [("CHANGES_APPLIED", [Role.CLIENT])],
+    "client_approve": [("CLIENT_APPROVAL_ACK", [Role.CLIENT])],
+    "capture_fields": [("FINANCE_APPROVAL_NEEDED", _PROVIDER)],
+    "finance_request_changes": [("FINANCE_CHANGES_REQUESTED", _PROVIDER)],
+    "sanity_fail": [("VALIDATION_FAILED", _PROVIDER)],
+    "billing_done": [
+        ("BILLING_ACTIVE_CLIENT", [Role.CLIENT]),
+        ("BILLING_CONFIGURED_PROVIDER", _PROVIDER),
+    ],
 }
 
 
@@ -42,29 +50,28 @@ def _context(settings, engagement, detail) -> dict:
         "engagement_url": base,
         "review_url": f"{base}/review",
         "finance_url": f"{base}/finance",
+        "billing_url": f"{base}/billing",
     }
 
 
 def _notify(action: str | None, detail: dict) -> None:
-    route = _ROUTES.get(action or "")
-    if route is None:
+    routes = _ROUTES.get(action or "")
+    if not routes:
         return
-    template, roles = route
     settings = get_settings()
     repo = Repository()
     engagement = repo.get_engagement(detail.get("engagement_id", ""))
     if engagement is None:
         return
-    recipients = [m for m in repo.list_members(engagement.engagement_id) if m.role in roles]
-    if not recipients:
-        return
+    members = repo.list_members(engagement.engagement_id)
 
     from ..notify.emailer import Emailer
 
     emailer = Emailer(settings)
     ctx = _context(settings, engagement, detail)
-    for m in recipients:
-        try:
-            emailer.send(to=m.email, template=template, recipient_name=m.name or m.email, **ctx)
-        except Exception as e:  # noqa: BLE001 - one bad recipient shouldn't drop the rest
-            log.warning("notify %s -> %s failed: %s", template, m.email, e)
+    for template, roles in routes:
+        for m in (mm for mm in members if mm.role in roles):
+            try:
+                emailer.send(to=m.email, template=template, recipient_name=m.name or m.email, **ctx)
+            except Exception as e:  # noqa: BLE001 - one bad recipient shouldn't drop the rest
+                log.warning("notify %s -> %s failed: %s", template, m.email, e)

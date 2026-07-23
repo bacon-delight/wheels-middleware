@@ -189,6 +189,36 @@ def test_finance_dashboard_totals(ctx):
     assert client.get("/finance/dashboard").status_code == 403
 
 
+def test_payment_schedule_pay_and_remind(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)  # ends as provider (analyst1)
+
+    b = client.get(f"/engagements/{eid}/billing").json()
+    sched = b["schedule"]
+    assert len(sched) == 12  # monthly cadence
+    assert sched[0]["kind"] == "initial" and sched[0]["status"] == "due" and sched[0]["payable"]
+    assert sched[0]["amount"] == 400.0  # $4/vehicle x 100
+    assert sched[1]["status"] == "upcoming" and sched[1]["pay_early"] and sched[1]["payable"]
+    assert sched[2]["status"] == "upcoming" and not sched[2]["payable"]
+
+    # Provider can remind on the due installment, but not on a future one.
+    assert client.post(f"/engagements/{eid}/payments/0:remind").status_code == 200
+    assert client.post(f"/engagements/{eid}/payments/3:remind").status_code == 409
+
+    # Client pays the initial installment; can't pay a far-future one.
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    assert client.post(f"/engagements/{eid}/payments/0:pay").status_code == 200
+    assert client.post(f"/engagements/{eid}/payments/5:pay").status_code == 409
+    # Client cannot send reminders (provider-only).
+    assert client.post(f"/engagements/{eid}/payments/1:remind").status_code == 403
+
+    b2 = client.get(f"/engagements/{eid}/billing").json()
+    assert b2["schedule"][0]["status"] == "paid"
+    assert b2["summary"]["paid_count"] == 1 and b2["summary"]["paid_amount"] == 400.0
+    # Paying twice is rejected.
+    assert client.post(f"/engagements/{eid}/payments/0:pay").status_code == 409
+
+
 def test_users_lists_providers_and_client_only_invites(ctx):
     client, repo, state = ctx
     # A provider membership (engagement creator) surfaces in the org Users list...

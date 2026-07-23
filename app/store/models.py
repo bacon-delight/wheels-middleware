@@ -21,6 +21,8 @@ class Engagement(BaseModel):
     status: str = "DRAFT"  # denormalized submission lifecycle status (for lists + finance)
     fleet_size: int = 100  # vehicles under management; drives recurring dues
     monthly_recurring: float | None = None  # computed at billing setup / fleet change
+    billing_start: str | None = None  # ISO date billing became active (schedule anchor)
+    billing_frequency: str = "monthly"  # monthly | quarterly | annual
     created_by: str
     created_at: str
 
@@ -104,6 +106,27 @@ class ReviewField(BaseModel):
     fee_items: list[dict[str, Any]] = Field(default_factory=list)
     citations: list[dict[str, Any]] = Field(default_factory=list)
     notes: str | None = None
+
+
+class Payment(BaseModel):
+    """One scheduled payment in an engagement's billing schedule.
+
+    Amounts for unpaid rows are computed at read time from the engagement's current
+    `monthly_recurring` (so a fleet change reflows into future dues); paid rows freeze
+    `amount_paid`. Due dates are fixed at generation time.
+    """
+
+    engagement_id: str
+    submission_id: str
+    seq: int
+    kind: str  # "initial" | "recurring"
+    label: str
+    period_start: str  # ISO date
+    due_date: str  # ISO date
+    paid: bool = False
+    paid_at: str | None = None
+    paid_by: str | None = None
+    amount_paid: float | None = None
 
 
 class AuditEvent(BaseModel):
