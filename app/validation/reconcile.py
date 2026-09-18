@@ -17,6 +17,24 @@ from .classify import derive_scope, rank_standing
 log = logging.getLogger(__name__)
 
 
+def pending_documents(repo: Repository, engagement_id: str) -> list:
+    """Documents in force whose current version has not been through extraction.
+
+    A document is pending when it has just been uploaded, or when a replacement bumped it to a
+    version nothing has read yet. Extraction targets exactly these: re-reading an agreement
+    that has already been extracted costs a model call and throws away the analyst's approvals
+    on terms that did not change.
+    """
+    out = []
+    for d in repo.list_documents(engagement_id):
+        if d.standing == DocumentStanding.SUPERSEDED.value:
+            continue
+        version = repo.get_document_version(engagement_id, d.document_id, d.current_version)
+        if version is None or version.status != "extracted":
+            out.append(d)
+    return out
+
+
 def reconcile_engagement(repo: Repository, engagement_id: str) -> dict:
     """Recompute standing, scope and the submission's document slots. Idempotent."""
     documents = repo.list_documents(engagement_id)

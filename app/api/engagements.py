@@ -131,6 +131,11 @@ def get_engagement(
         elected = [f for f in fields if f.elected]
         approved = sum(1 for f in elected if f.approved)
         item = d.model_dump(mode="json")
+        # Whether this particular agreement still needs reading, so the interface can offer
+        # extraction on the documents that need it rather than on the engagement as a whole.
+        version = repo.get_document_version(engagement_id, d.document_id, d.current_version)
+        item["extraction_status"] = version.status if version else "missing"
+        item["needs_extraction"] = version is None or version.status != "extracted"
         item["review"] = {
             "approved": approved,
             "total": len(elected),

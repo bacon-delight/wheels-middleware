@@ -322,3 +322,61 @@ def test_a_submission_advances_even_when_no_document_could_be_typed(ctx):  # noq
         eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value
     )
     assert client.get(f"/engagements/{eid}").json()["submission"]["status"] == "IN_UNDERWRITING"
+
+
+def _doc_version(repo, eid, did, status):
+    from app.store.models import DocumentVersion
+    from app.store.repository import utcnow
+
+    doc = repo.get_document(eid, did)
+    repo.put_document_version(DocumentVersion(
+        engagement_id=eid, document_id=did, version=doc.current_version,
+        s3_key=f"{eid}/{did}/v{doc.current_version:04d}.pdf", status=status,
+        uploaded_at=utcnow(),
+    ))
+
+
+def test_extraction_targets_only_documents_that_need_reading(ctx):  # noqa: F811
+    """Re-reading an already-extracted agreement costs a model call and would discard the
+    corrections an analyst made to its terms."""
+    client, repo, state = ctx
+    from app.validation.reconcile import pending_documents
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+
+    done = client.post(f"/engagements/{eid}/documents:presign",
+                       json={"doc_type": "MLA", "filename": "old.pdf", "submission_id": sid},
+                       ).json()["document_id"]
+    fresh = client.post(f"/engagements/{eid}/documents:presign",
+                        json={"doc_type": "MSA", "filename": "new.pdf", "submission_id": sid},
+                        ).json()["document_id"]
+    _doc_version(repo, eid, done, "extracted")
+    _doc_version(repo, eid, fresh, "uploaded")
+
+    assert [d.document_id for d in pending_documents(repo, eid)] == [fresh]
+
+    docs = {d["document_id"]: d for d in client.get(f"/engagements/{eid}").json()["documents"]}
+    assert docs[done]["needs_extraction"] is False
+    assert docs[fresh]["needs_extraction"] is True
+
+
+def test_a_single_document_can_be_extracted_on_its_own(ctx):  # noqa: F811
+    client, repo, state = ctx
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MLA", "filename": "a.pdf", "submission_id": sid},
+                      ).json()["document_id"]
+    _doc_version(repo, eid, did, "uploaded")
+
+    ok = client.post(f"/engagements/{eid}/documents/{did}:extract")
+    assert ok.status_code == 200
+    assert ok.json()["submission"]["status"] == "EXTRACTING"
+
+    # Once read, asking again is refused rather than silently spending another call.
+    _doc_version(repo, eid, did, "extracted")
+    again = client.post(f"/engagements/{eid}/documents/{did}:extract")
+    assert again.status_code == 409 and "already been extracted" in again.json()["detail"]

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..auth.deps import get_principal, get_repo, get_s3, membership_dep
+from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
 from ..lifecycle.submission_state import (
     Action,
@@ -19,6 +19,7 @@ from ..messaging import emit_lifecycle_event, enqueue_ingest
 from ..store.models import AuditEvent, DocumentStanding, Membership, Submission
 from ..store.repository import ConflictError, Repository, new_id, utcnow
 from ..store.s3 import S3Store
+from ..validation.reconcile import pending_documents
 
 router = APIRouter(tags=["submissions"])
 
@@ -120,15 +121,15 @@ def submit_for_processing(
     # action, role). The gate counts uploaded documents, not the submission's typed slots —
     # classification happens inside this run, so requiring a classified document first would
     # mean nothing could ever be classified.
-    documents = [
-        d for d in repo.list_documents(engagement_id)
-        if d.standing != DocumentStanding.SUPERSEDED.value
-    ]
-    if not documents:
+    if not [d for d in repo.list_documents(engagement_id)
+            if d.standing != DocumentStanding.SUPERSEDED.value]:
         raise HTTPException(400, "upload at least one agreement before running extraction")
+    documents = pending_documents(repo, engagement_id)
+    if not documents:
+        raise HTTPException(409, "every agreement has already been extracted")
     updated = _apply(repo, principal, member, sub, Action.SUBMIT_FOR_PROCESSING)
-    # Every document in force goes through the pipeline, including the ones whose type is not
-    # yet known: parsing is what reads the type off the text.
+    # Only the documents nothing has read yet, including ones whose type is not known:
+    # parsing is what reads the type off the text.
     for doc in documents:
         ver = repo.get_document_version(engagement_id, doc.document_id, doc.current_version)
         if ver:
@@ -140,6 +141,62 @@ def submit_for_processing(
                 }
             )
     return {"submission": updated}
+
+
+@router.post("/engagements/{engagement_id}/documents/{document_id}:extract")
+def extract_document(
+    engagement_id: str,
+    document_id: str,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Run extraction on one agreement.
+
+    Extraction is per document, not per engagement: a newly uploaded or replaced agreement is
+    the only thing that needs reading, and re-running the ones already extracted would spend a
+    model call to reproduce terms an analyst may have already corrected and approved.
+
+    The submission still moves as a whole, because the lifecycle is a property of the
+    negotiation rather than of any one file. From DRAFT that is the first processing run; from
+    underwriting it is a re-validation, which is the same path a corrected re-upload takes.
+    """
+    doc = repo.get_document(engagement_id, document_id)
+    if doc is None:
+        raise HTTPException(404, "document not found")
+    version = repo.get_document_version(engagement_id, document_id, doc.current_version)
+    if version is None:
+        raise HTTPException(409, "this document has no uploaded file yet")
+    if version.status == "extracted":
+        raise HTTPException(409, "this agreement has already been extracted")
+
+    subs = repo.list_submissions(engagement_id)
+    if not subs:
+        raise HTTPException(404, "submission not found")
+    sub = subs[0]
+    status = sub.status.value
+    if status == SubmissionStatus.DRAFT.value:
+        sub = _apply(repo, principal, member, sub, Action.SUBMIT_FOR_PROCESSING)
+    elif status in (
+        SubmissionStatus.IN_UNDERWRITING.value,
+        SubmissionStatus.VALIDATION_FAILED.value,
+        SubmissionStatus.CHANGES_REQUESTED_CLIENT.value,
+    ):
+        sub = _apply(repo, principal, member, sub, Action.REUPLOAD)
+    elif status not in (
+        SubmissionStatus.EXTRACTING.value,
+        SubmissionStatus.REVALIDATING.value,
+    ):
+        # Past underwriting the terms are with the customer or finance; re-reading a document
+        # underneath them would change what they are looking at.
+        raise HTTPException(409, f"cannot extract while the submission is {status}")
+
+    enqueue_ingest({
+        "engagement_id": engagement_id, "submission_id": sub.submission_id,
+        "document_id": document_id, "version": version.version,
+        "s3_key": version.s3_key, "doc_type": doc.doc_type,
+    })
+    return {"submission": sub, "document_id": document_id}
 
 
 @router.post("/engagements/{engagement_id}/submissions/{submission_id}:submit-to-client")
@@ -196,10 +253,8 @@ def reupload(
     """Provider re-uploaded document(s) with the requested change; re-validate + re-extract."""
     sub = _load(repo, engagement_id, submission_id)
     updated = _apply(repo, principal, member, sub, Action.REUPLOAD, body.comment)
-    # Same rule as the first run: everything in force goes through, typed or not.
-    for doc in repo.list_documents(engagement_id):
-        if doc.standing == DocumentStanding.SUPERSEDED.value:
-            continue
+    # Same rule as the first run: only what has not been read at its current version.
+    for doc in pending_documents(repo, engagement_id):
         ver = repo.get_document_version(engagement_id, doc.document_id, doc.current_version)
         if ver:
             enqueue_ingest({
