@@ -112,11 +112,14 @@ def finance_dashboard(
             stats = summarize(enriched)
             for r in enriched:
                 month = r["due_date"][:7]
-                slot = billed_by_month.setdefault(month, {"billed": 0.0, "collected": 0.0})
-                slot["billed"] += r["amount"]
-                if r["status"] == "paid":
-                    slot["collected"] += r["amount"]
-                elif r["status"] in ("due", "overdue"):
+                # History only. Future scheduled rows are not "billed" yet, and charting them
+                # would show collections falling off a cliff against dues nobody owes.
+                if month <= today.isoformat()[:7]:
+                    slot = billed_by_month.setdefault(month, {"billed": 0.0, "collected": 0.0})
+                    slot["billed"] += r["amount"]
+                    if r["status"] == "paid":
+                        slot["collected"] += r["amount"]
+                if r["status"] in ("due", "overdue"):
                     outstanding += r["amount"]
                     bucket = aging[_age_bucket(datetime.date.fromisoformat(r["due_date"]), today)]
                     bucket["count"] += 1
