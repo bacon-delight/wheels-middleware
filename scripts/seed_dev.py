@@ -44,6 +44,7 @@ from app.store.models import (  # noqa: E402
 )
 from app.store.repository import Repository, new_id, utcnow  # noqa: E402
 from app.store.s3 import S3Store  # noqa: E402
+from app.validation.reconcile import reconcile_engagement  # noqa: E402
 
 PROVIDER_ID = "340684c8-70c1-70f9-aa27-be7f0d41321e"
 PROVIDER_EMAIL = "dipanjan.de@logiforma.com"
@@ -233,7 +234,7 @@ def main() -> int:
         legal = CUSTOMERS[ci][0]
         eng = Engagement(
             engagement_id=eid, name=name, client_name=legal, customer_id=customer_id,
-            scope=scope, status=status, fleet_size=0,
+            scope=None, status=status, fleet_size=0,
             created_by=PROVIDER_ID,
             created_at=(today - datetime.timedelta(days=rng.randrange(60, 420))).isoformat(),
         )
@@ -254,17 +255,39 @@ def main() -> int:
                 actor_role="provider", actor_name=PROVIDER_NAME, action="engagement_created",
             ))
 
-        # --- documents, one per agreement the scope requires ---
+        # --- documents: the agreements in force, plus the odd superseded one on file ---
         doc_ids = {}
         for doc_type in required_doc_types(scope):
             did = new_id()
             doc_ids[doc_type] = did
             if apply:
+                effective = (today - datetime.timedelta(days=30 * (months or 6))).isoformat()
                 repo.put_document(Document(
                     engagement_id=eid, document_id=did, doc_type=doc_type,
-                    filename=f"{legal.split()[0]}_{doc_type}.pdf", current_version=1,
+                    filename=f"{legal.split()[0]}_{doc_type}_{effective[:4]}.pdf",
+                    current_version=1, standing="CURRENT", effective_date=effective,
+                    classified_type=doc_type, classification_confidence=0.99,
                     created_at=utcnow(),
                 ))
+                # About a third of customers also hand over the agreement this one replaced.
+                if rng.random() < 0.35:
+                    prior_id = new_id()
+                    prior_eff = (
+                        datetime.date.fromisoformat(effective)
+                        - datetime.timedelta(days=365 * rng.choice([2, 3]))
+                    ).isoformat()
+                    repo.put_document(Document(
+                        engagement_id=eid, document_id=prior_id, doc_type=doc_type,
+                        filename=f"{legal.split()[0]}_{doc_type}_{prior_eff[:4]}.pdf",
+                        current_version=1, standing="SUPERSEDED", effective_date=prior_eff,
+                        classified_type=doc_type, classification_confidence=0.99,
+                        created_at=utcnow(),
+                    ))
+                    repo.put_document_version(DocumentVersion(
+                        engagement_id=eid, document_id=prior_id, version=1,
+                        s3_key=f"{eid}/{prior_id}/v0001.pdf", page_count=rng.randrange(9, 22),
+                        status="extracted", uploaded_at=utcnow(),
+                    ))
                 repo.put_document_version(DocumentVersion(
                     engagement_id=eid, document_id=did, version=1,
                     s3_key=f"{eid}/{did}/v0001.pdf", page_count=rng.randrange(9, 22),
@@ -279,6 +302,8 @@ def main() -> int:
         )
         if apply:
             repo.put_submission(sub)
+            # Settle standing, scope and the submission's slots the way an upload would.
+            reconcile_engagement(repo, eid)
 
         # --- terms: the MSA carries the service lines, the MLA the lease-side ones ---
         if status != "DRAFT":

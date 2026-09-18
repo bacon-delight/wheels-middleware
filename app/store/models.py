@@ -44,7 +44,9 @@ class Engagement(BaseModel):
     name: str
     client_name: str  # denormalized display copy of Customer.legal_name (lists need no join)
     customer_id: str | None = None  # null only for rows predating the customer backfill
-    scope: str = EngagementScope.LEASE_AND_SERVICE.value  # see REQUIRED_DOC_TYPES
+    # Derived from the agreements in force, not chosen at creation. None until the first
+    # document has been classified.
+    scope: str | None = None
     status: str = "DRAFT"  # denormalized submission lifecycle status (for lists + finance)
     fleet_size: int = 100  # effective vehicles under management; drives recurring dues
     # When set, overrides the count of vehicles assigned to this engagement.
@@ -288,12 +290,25 @@ class Submission(BaseModel):
         return patch
 
 
+class DocumentStanding(str, Enum):
+    """Whether an agreement governs the engagement today, or is kept for the record."""
+
+    CURRENT = "CURRENT"
+    SUPERSEDED = "SUPERSEDED"
+
+
 class Document(BaseModel):
     engagement_id: str
     document_id: str
-    doc_type: str  # MSA | MLA
+    doc_type: str = "UNKNOWN"  # MSA | MLA | UNKNOWN until classified from the text
     filename: str
     current_version: int = 1
+    # --- classification, filled in by the parse worker ---
+    standing: str = DocumentStanding.CURRENT.value
+    effective_date: str | None = None  # read from the document; orders one against another
+    classified_type: str | None = None  # what the text said, before any manual override
+    classification_confidence: float | None = None
+    type_overridden: bool = False  # a person corrected the type; do not re-classify
     created_at: str
 
 

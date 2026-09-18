@@ -280,7 +280,7 @@ class Repository:
             },
         )
 
-    def set_engagement_scope(self, engagement_id: str, scope: str) -> None:
+    def set_engagement_scope(self, engagement_id: str, scope: str | None) -> None:
         self.table.update_item(
             Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
             UpdateExpression="SET #sc = :s",
@@ -472,6 +472,39 @@ class Repository:
             Key={"PK": k.eng_pk(engagement_id), "SK": k.document_sk(document_id)}
         )
         return self._load(r.get("Item"), Document)
+
+    def set_document_meta(
+        self,
+        engagement_id: str,
+        document_id: str,
+        *,
+        doc_type: str | None = None,
+        standing: str | None = None,
+        effective_date: str | None = None,
+        classified_type: str | None = None,
+        confidence: float | None = None,
+        type_overridden: bool | None = None,
+    ) -> None:
+        """Patch the classification fields the parse worker (or a correcting analyst) sets."""
+        updates = {
+            "doc_type": doc_type, "standing": standing, "effective_date": effective_date,
+            "classified_type": classified_type, "classification_confidence": confidence,
+            "type_overridden": type_overridden,
+        }
+        updates = {k: v for k, v in updates.items() if v is not None}
+        if not updates:
+            return
+        names, values, sets = {}, {}, []
+        for i, (key, val) in enumerate(updates.items()):
+            names[f"#f{i}"] = key
+            values[f":f{i}"] = val
+            sets.append(f"#f{i} = :f{i}")
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.document_sk(document_id)},
+            UpdateExpression="SET " + ", ".join(sets),
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=_to_decimal(values),
+        )
 
     def list_documents(self, engagement_id: str) -> list[Document]:
         r = self.table.query(

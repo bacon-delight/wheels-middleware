@@ -16,6 +16,8 @@ from ..objects import page_key
 from ..ocr.pymupdf_engine import PyMuPDFEngine
 from ..store.repository import ConflictError, Repository
 from ..store.s3 import S3Store
+from ..validation.classify import classify_doc_type, find_effective_date
+from ..validation.reconcile import reconcile_engagement
 from ..validation.sanity import sanity_check_text
 
 log = logging.getLogger(__name__)
@@ -38,6 +40,24 @@ def _process(body: dict) -> None:
 
     pdf = s3.get_bytes(body["s3_key"])
     parsed = engine.parse(pdf)
+
+    # Customers upload what they have without labelling it, so read the type and the effective
+    # date off the text, then let reconcile settle which agreement is in force.
+    doc = repo.get_document(eid, did)
+    if doc is not None and not doc.type_overridden:
+        detected, confidence = classify_doc_type(parsed.full_text)
+        effective = find_effective_date(parsed.full_text)
+        if detected != doc.doc_type or effective != doc.effective_date:
+            repo.set_document_meta(
+                eid, did,
+                doc_type=detected if detected != "UNKNOWN" else None,
+                classified_type=detected,
+                confidence=confidence,
+                effective_date=effective,
+            )
+            log.info("classified %s/%s as %s (%.2f) effective=%s",
+                     eid, did, detected, confidence, effective)
+        reconcile_engagement(repo, eid)
 
     # Re-upload path: sanity-gate before spending an extraction call.
     sub = repo.get_submission(eid, sid)

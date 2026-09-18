@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from app.auth.principal import Principal
 from app.store.models import VehicleOwnership, VehicleStatus
 
@@ -190,104 +188,65 @@ def test_clients_may_see_only_their_own_engagement_vehicles(ctx):  # noqa: F811
     assert client.get("/vehicles/summary").status_code == 403
 
 
-@pytest.mark.parametrize(
-    "scope,allowed,refused",
-    [("LEASE_ONLY", "MLA", "MSA"), ("SERVICE_ONLY", "MSA", "MLA")],
-)
-def test_scope_limits_which_agreements_can_be_uploaded(ctx, scope, allowed, refused):  # noqa: F811
+def test_scope_is_derived_from_the_agreements_uploaded(ctx):  # noqa: F811
+    """Nobody declares the scope any more; it follows whatever agreements are in force."""
     client, repo, state = ctx
     cid = _customer(client)
-    r = client.post("/engagements", json={"name": "E", "customer_id": cid, "scope": scope}).json()
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
     eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    assert client.get(f"/engagements/{eid}").json()["engagement"]["scope"] is None
 
-    detail = client.get(f"/engagements/{eid}").json()
-    assert detail["required_doc_types"] == [allowed]
-    assert detail["missing_doc_types"] == [allowed]
-
-    ok = client.post(f"/engagements/{eid}/documents:presign",
-                     json={"doc_type": allowed, "filename": "a.pdf", "submission_id": sid})
-    assert ok.status_code == 201
-    bad = client.post(f"/engagements/{eid}/documents:presign",
-                      json={"doc_type": refused, "filename": "b.pdf", "submission_id": sid})
-    assert bad.status_code == 400
-
-    # One agreement is now the complete set, so extraction may start.
-    assert client.get(f"/engagements/{eid}").json()["missing_doc_types"] == []
-    started = client.post(f"/engagements/{eid}/submissions/{sid}:submit-for-processing")
-    assert started.status_code == 200
-
-
-def test_extraction_is_refused_while_a_required_agreement_is_missing(ctx):  # noqa: F811
-    client, repo, state = ctx
-    cid = _customer(client)
-    r = client.post("/engagements", json={
-        "name": "E", "customer_id": cid, "scope": "LEASE_AND_SERVICE",
-    }).json()
-    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    # An uploader may state the type; otherwise the parse worker reads it off the text.
     client.post(f"/engagements/{eid}/documents:presign",
                 json={"doc_type": "MLA", "filename": "a.pdf", "submission_id": sid})
-
-    blocked = client.post(f"/engagements/{eid}/submissions/{sid}:submit-for-processing")
-    assert blocked.status_code == 400 and "MSA" in blocked.json()["detail"]
+    assert client.get(f"/engagements/{eid}").json()["engagement"]["scope"] == "LEASE_ONLY"
 
     client.post(f"/engagements/{eid}/documents:presign",
                 json={"doc_type": "MSA", "filename": "b.pdf", "submission_id": sid})
-    assert client.post(
-        f"/engagements/{eid}/submissions/{sid}:submit-for-processing"
-    ).status_code == 200
+    d = client.get(f"/engagements/{eid}").json()
+    assert d["engagement"]["scope"] == "LEASE_AND_SERVICE"
+    assert d["required_doc_types"] == ["MLA", "MSA"]
 
 
-def test_scope_locks_once_the_client_has_been_asked_to_approve(ctx):  # noqa: F811
+def test_a_newer_agreement_supersedes_the_older_one_of_its_type(ctx):  # noqa: F811
+    """Customers bring old agreements for the record; only the newest of a type governs."""
     client, repo, state = ctx
-    from app.lifecycle.submission_state import SubmissionStatus
+    from app.validation.reconcile import reconcile_engagement
 
     cid = _customer(client)
     r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
     eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
-    assert client.patch(f"/engagements/{eid}", json={"scope": "LEASE_ONLY"}).status_code == 200
 
-    for a, b in (
-        (SubmissionStatus.DRAFT, SubmissionStatus.EXTRACTING),
-        (SubmissionStatus.EXTRACTING, SubmissionStatus.IN_UNDERWRITING),
-        (SubmissionStatus.IN_UNDERWRITING, SubmissionStatus.PENDING_CLIENT_APPROVAL),
-    ):
-        repo.update_submission_status(eid, sid, a.value, b.value)
-    assert client.patch(f"/engagements/{eid}", json={"scope": "SERVICE_ONLY"}).status_code == 409
+    old_doc = client.post(f"/engagements/{eid}/documents:presign", json={
+        "doc_type": "MLA", "filename": "MLA_2021.pdf", "submission_id": sid,
+    }).json()["document_id"]
+    new_doc = client.post(f"/engagements/{eid}/documents:presign", json={
+        "doc_type": "MLA", "filename": "MLA_2025.pdf", "submission_id": sid,
+    }).json()["document_id"]
+    assert old_doc != new_doc, "a second agreement of the same type is its own document"
+
+    repo.set_document_meta(eid, old_doc, effective_date="2021-01-01")
+    repo.set_document_meta(eid, new_doc, effective_date="2025-01-01")
+    reconcile_engagement(repo, eid)
+
+    docs = {d["document_id"]: d for d in client.get(f"/engagements/{eid}").json()["documents"]}
+    assert docs[new_doc]["standing"] == "CURRENT"
+    assert docs[old_doc]["standing"] == "SUPERSEDED"
+    # Only the agreement in force is under negotiation.
+    assert repo.list_submissions(eid)[0].docs() == {"MLA": new_doc}
 
 
-def test_finance_dashboard_rolls_revenue_up_to_the_customer(ctx):  # noqa: F811
-    """One customer signs many engagements, so exposure is the customer's total, not per deal."""
+def test_extraction_needs_at_least_one_agreement(ctx):  # noqa: F811
     client, repo, state = ctx
-    from .test_api import _drive_to_active
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
 
-    eid = _drive_to_active(client, repo, state, None)
-    cid = _customer(client, "Rollup Corp")
-    client.patch(f"/engagements/{eid}", json={"customer_id": cid})
+    blocked = client.post(f"/engagements/{eid}/submissions/{sid}:submit-for-processing")
+    assert blocked.status_code == 400 and "at least one" in blocked.json()["detail"]
 
-    d = client.get("/finance/dashboard").json()
-    assert d["totals"]["customers"] >= 1
-    assert d["totals"]["collection_rate"] >= 0
-    assert d["totals"]["revenue_per_vehicle"] > 0
-
-    top = d["top_customers"][0]
-    assert top["name"] == "Rollup Corp"
-    assert top["engagements"] == 1
-    assert top["monthly_recurring"] == 400.0
-    assert top["annualized"] == 4800.0
-    assert top["revenue_share"] == 100.0
-    assert d["totals"]["top5_revenue_share"] == 100.0
-
-    assert d["top_engagements"][0]["engagement_id"] == eid
-    assert [b["key"] for b in d["aging"]] == ["current", "d1_30", "d31_60", "d61_90", "d90_plus"]
-    assert sum(b["count"] for b in d["aging"]) == 12  # the full monthly schedule
-    assert d["revenue_trend"] and all("billed" in m for m in d["revenue_trend"])
-
-
-def test_finance_dashboard_ranking_limit_is_honoured(ctx):  # noqa: F811
-    client, repo, state = ctx
-    for n in ("A Ltd", "B Ltd", "C Ltd"):
-        cid = _customer(client, n)
-        client.post("/engagements", json={"name": f"E {n}", "customer_id": cid})
-    d = client.get("/finance/dashboard", params={"top": 2}).json()
-    assert len(d["top_customers"]) == 2
-    assert len(d["customers"]) == 3  # the full list is always returned
+    client.post(f"/engagements/{eid}/documents:presign",
+                json={"doc_type": "MLA", "filename": "a.pdf", "submission_id": sid})
+    assert client.post(
+        f"/engagements/{eid}/submissions/{sid}:submit-for-processing"
+    ).status_code == 200

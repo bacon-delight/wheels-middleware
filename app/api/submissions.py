@@ -16,7 +16,7 @@ from ..lifecycle.submission_state import (
     transition,
 )
 from ..messaging import emit_lifecycle_event, enqueue_ingest
-from ..store.models import AuditEvent, Membership, Submission, required_doc_types
+from ..store.models import AuditEvent, Membership, Submission
 from ..store.repository import ConflictError, Repository, new_id, utcnow
 from ..store.s3 import S3Store
 
@@ -117,12 +117,10 @@ def submit_for_processing(
 ):
     sub = _load(repo, engagement_id, submission_id)
     # The only data-completeness gate in the flow: the state machine stays pure (source,
-    # action, role), so the scope requirement is enforced here at the route.
-    engagement = repo.get_engagement(engagement_id)
-    missing = [t for t in required_doc_types(engagement.scope if engagement else None)
-               if t not in sub.docs()]
-    if missing:
-        raise HTTPException(400, f"upload the {' and '.join(missing)} before running extraction")
+    # action, role). Scope is derived from what gets uploaded rather than declared up front, so
+    # the requirement is simply that there is something in force to extract.
+    if not sub.docs():
+        raise HTTPException(400, "upload at least one agreement before running extraction")
     updated = _apply(repo, principal, member, sub, Action.SUBMIT_FOR_PROCESSING)
     # Kick off the pipeline for each uploaded document in the submission.
     for document_id in sub.docs().values():

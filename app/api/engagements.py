@@ -12,7 +12,6 @@ from ..lifecycle.submission_state import Role
 from ..store.models import (
     AuditEvent,
     Engagement,
-    EngagementScope,
     Membership,
     Submission,
     required_doc_types,
@@ -27,12 +26,10 @@ class CreateEngagementIn(BaseModel):
     name: str
     client_name: str | None = None  # legacy free-text path; ignored when customer_id is given
     customer_id: str | None = None
-    scope: str = EngagementScope.LEASE_AND_SERVICE.value
 
 
 class UpdateEngagementIn(BaseModel):
     name: str | None = None
-    scope: str | None = None
     customer_id: str | None = None
 
 
@@ -73,8 +70,6 @@ def create_engagement(
 ):
     if not principal.is_provider:
         raise HTTPException(403, "only provider-side users can create engagements")
-    if body.scope not in {s.value for s in EngagementScope}:
-        raise HTTPException(400, f"scope must be one of {[s.value for s in EngagementScope]}")
     customer_id, client_name = body.customer_id, (body.client_name or "").strip()
     if customer_id:
         customer = repo.get_customer(customer_id)
@@ -87,7 +82,7 @@ def create_engagement(
     engagement = repo.put_engagement(
         Engagement(
             engagement_id=eid, name=body.name, client_name=client_name,
-            customer_id=customer_id, scope=body.scope,
+            customer_id=customer_id,
             fleet_size_override=None, fleet_size=0,
             created_by=principal.user_id, created_at=utcnow(),
         )
@@ -143,7 +138,9 @@ def get_engagement(
         }
         documents.append(item)
     sub = submissions[0] if submissions else None
-    required = required_doc_types(engagement.scope)
+    # With scope derived, "required" describes what the agreements in force amount to rather
+    # than a checklist to satisfy; nothing is missing until a type is known and absent.
+    required = required_doc_types(engagement.scope) if engagement.scope else []
     present = set(sub.docs()) if sub else set()
     assigned = repo.count_vehicles_for_engagement(engagement_id)
     return {
@@ -172,8 +169,7 @@ def update_engagement(
 ):
     """Rename an engagement, move it to another customer, or change its scope.
 
-    Scope is only editable while the terms are still internal: once the client has been asked
-    to approve, the set of agreements under negotiation is settled.
+    Scope is not settable: it is derived from the agreements in force.
     """
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
@@ -185,15 +181,6 @@ def update_engagement(
         if customer is None:
             raise HTTPException(404, "customer not found")
         repo.set_engagement_customer(engagement_id, body.customer_id, customer.legal_name)
-    if body.scope:
-        if body.scope not in {s.value for s in EngagementScope}:
-            raise HTTPException(400, f"scope must be one of {[s.value for s in EngagementScope]}")
-        subs = repo.list_submissions(engagement_id)
-        status = subs[0].status.value if subs else "DRAFT"
-        if status not in ("DRAFT", "EXTRACTING", "IN_UNDERWRITING"):
-            raise HTTPException(409, "scope is locked once the client has been asked to approve")
-        repo.set_engagement_scope(engagement_id, body.scope)
-        _audit(repo, engagement_id, principal, "engagement_scope_changed", comment=body.scope)
     return {"engagement": repo.get_engagement(engagement_id)}
 
 

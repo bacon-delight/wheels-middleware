@@ -277,9 +277,10 @@ def test_change_review_and_summary(ctx):
     repo.put_audit(AuditEvent(
         engagement_id=eid, event_id="a1", ts=utcnow(), actor_id="c", actor_role="client",
         actor_name="Jordan Lee", action="client_request_changes", comment="reduce maintenance to $10"))
-    # Provider re-uploads a revised version with a partial reduction.
+    # Provider re-uploads a revised version with a partial reduction. Naming the document is
+    # what distinguishes a revision of this agreement from a second, superseding one.
     client.post(f"/engagements/{eid}/documents:presign",
-                json={"doc_type": "MSA", "filename": "m2.pdf", "submission_id": sid})
+                json={"document_id": did, "filename": "m2.pdf", "submission_id": sid})
     repo.put_field(ReviewField(
         engagement_id=eid, document_id=did, version=2, field_id="mnt2", service="Maintenance",
         elected=True, confidence=0.9, needs_review=False,

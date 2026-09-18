@@ -11,23 +11,25 @@ from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require
 from ..auth.principal import Principal
 from ..lifecycle.submission_state import Role
 from ..objects import page_key, source_pdf_key
-from ..store.models import (
-    AuditEvent,
-    Document,
-    DocumentVersion,
-    Membership,
-    required_doc_types,
-)
+from ..store.models import AuditEvent, Document, DocumentVersion, Membership
 from ..store.repository import Repository, new_id, utcnow
 from ..store.s3 import S3Store
+from ..validation.reconcile import reconcile_engagement
 
 router = APIRouter(tags=["documents"])
 
 
 class PresignIn(BaseModel):
-    doc_type: str  # MSA | MLA
     filename: str
     submission_id: str
+    # Uploaders no longer pick a type; the parse worker reads it off the text. These two exist
+    # for the replace flow (a new version of an existing agreement) and a manual correction.
+    document_id: str | None = None
+    doc_type: str | None = None
+
+
+class DocTypeIn(BaseModel):
+    doc_type: str  # MSA | MLA
 
 
 class FieldPatchIn(BaseModel):
@@ -44,21 +46,15 @@ def presign_upload(
     repo: Repository = Depends(get_repo),
     s3: S3Store = Depends(get_s3),
 ):
-    # Which agreements apply is driven by what the customer bought, not a fixed pair.
-    engagement = repo.get_engagement(engagement_id)
-    allowed = required_doc_types(engagement.scope if engagement else None)
-    if body.doc_type not in allowed:
-        raise HTTPException(
-            400,
-            f"doc_type must be one of {list(allowed)} for this engagement's scope",
-        )
+    if body.doc_type is not None and body.doc_type not in ("MSA", "MLA"):
+        raise HTTPException(400, "doc_type must be MSA or MLA when given")
 
-    # Re-uploading a slot creates a NEW VERSION of the same document rather than a duplicate
-    # (a failed first upload must not leave a phantom document behind).
-    sub = repo.get_submission(engagement_id, body.submission_id)
-    slot_id = sub.docs().get(body.doc_type) if sub is not None else None
-
-    existing = repo.get_document(engagement_id, slot_id) if slot_id else None
+    # An engagement can hold several agreements of the same type over its life — the one in
+    # force plus superseded ones kept for the record — so an upload creates a new document
+    # unless it explicitly replaces an existing one.
+    existing = repo.get_document(engagement_id, body.document_id) if body.document_id else None
+    if body.document_id and existing is None:
+        raise HTTPException(404, "document not found")
     if existing is not None:
         document_id = existing.document_id
         version = existing.current_version + 1
@@ -70,15 +66,16 @@ def presign_upload(
         version = 1
         repo.put_document(
             Document(
-                engagement_id=engagement_id, document_id=document_id, doc_type=body.doc_type,
+                engagement_id=engagement_id, document_id=document_id,
+                doc_type=body.doc_type or "UNKNOWN",
+                type_overridden=body.doc_type is not None,
                 filename=body.filename, current_version=version, created_at=utcnow(),
             )
         )
-        if sub is not None:
-            for attr, value in sub.with_doc(body.doc_type, document_id).items():
-                setattr(sub, attr, value)
-            sub.updated_at = utcnow()
-            repo.put_submission(sub)
+        # Standing and the submission's slots are settled once the type is known; if the
+        # uploader supplied one, that is now.
+        if body.doc_type is not None:
+            reconcile_engagement(repo, engagement_id)
 
     key = source_pdf_key(engagement_id, document_id, version)
     repo.put_document_version(
@@ -93,6 +90,31 @@ def presign_upload(
         "s3_key": key,
         "upload_url": s3.presign_put(key, content_type="application/pdf"),
     }
+
+
+@router.put("/engagements/{engagement_id}/documents/{document_id}/type")
+def set_document_type(
+    engagement_id: str,
+    document_id: str,
+    body: DocTypeIn,
+    member: Membership = Depends(require_provider),
+    repo: Repository = Depends(get_repo),
+):
+    """Correct a misclassified agreement.
+
+    Classification reads the document's own text, which is reliable but not infallible — a
+    scanned cover page or an unusual title can defeat it. An explicit correction sticks: the
+    parse worker will not overwrite it on a later re-upload.
+    """
+    if body.doc_type not in ("MSA", "MLA"):
+        raise HTTPException(400, "doc_type must be MSA or MLA")
+    if repo.get_document(engagement_id, document_id) is None:
+        raise HTTPException(404, "document not found")
+    repo.set_document_meta(
+        engagement_id, document_id, doc_type=body.doc_type, type_overridden=True
+    )
+    result = reconcile_engagement(repo, engagement_id)
+    return {"ok": True, "scope": result["scope"]}
 
 
 @router.get("/engagements/{engagement_id}/documents")
