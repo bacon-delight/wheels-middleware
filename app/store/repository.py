@@ -157,12 +157,16 @@ class Repository:
         return [self._load(i, Submission) for i in self._scan_by_type("SUBMISSION")]
 
     def set_engagement_status(self, engagement_id: str, status: str) -> None:
-        """Denormalize the submission lifecycle status onto the engagement meta."""
+        """Denormalize the submission lifecycle status onto the engagement meta.
+
+        The GSI1 status partition is rewritten alongside it; leaving it behind would make the
+        index disagree with the row it points at.
+        """
         self.table.update_item(
             Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
-            UpdateExpression="SET #s = :s",
-            ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":s": status},
+            UpdateExpression="SET #s = :s, #g = :g",
+            ExpressionAttributeNames={"#s": "status", "#g": "GSI1PK"},
+            ExpressionAttributeValues={":s": status, ":g": k.lcstatus_gsi1pk(status)},
         )
 
     def set_engagement_billing(
@@ -458,6 +462,10 @@ class Repository:
             raise ConflictError(
                 f"submission {submission_id} was not in expected status {expected_status}"
             ) from e
+        # The engagement keeps a denormalized copy of this status so lists and the dashboard
+        # need no join. Updating it here rather than at each call site is what stops the two
+        # drifting apart: the pipeline workers transition submissions too, and they did not.
+        self.set_engagement_status(engagement_id, new_status)
         return self._load(r["Attributes"], Submission)
 
     # --- Document + version ---

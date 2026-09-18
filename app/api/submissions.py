@@ -57,8 +57,6 @@ def _apply(
         )
     except ConflictError as e:
         raise HTTPException(409, detail=str(e)) from e
-    # Denormalize the lifecycle status onto the engagement (drives lists + finance dashboard).
-    repo.set_engagement_status(sub.engagement_id, updated.status.value)
     repo.put_audit(
         AuditEvent(
             engagement_id=sub.engagement_id, event_id=new_id(), ts=utcnow(),

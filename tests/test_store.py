@@ -190,3 +190,47 @@ def test_audit_trail_is_time_descending(repo):
             actor_id="u1", actor_role="provider", action=action))
     actions = [a.action for a in repo.list_audit("apex")]
     assert set(actions) == {"created", "submitted", "approved"}
+
+
+def test_a_transition_keeps_the_engagements_denormalized_status_in_step(repo):
+    """Engagements carry a copy of their submission's status so lists need no join. The
+    pipeline workers transition submissions directly, and when only the API wrote that copy,
+    a sanity failure or a finished extraction left the list showing the previous stage."""
+    e = _eng(repo)
+    sub = repo.put_submission(
+        Submission(
+            engagement_id=e.engagement_id, submission_id="s1",
+            created_at=utcnow(), updated_at=utcnow(),
+        )
+    )
+    assert repo.get_engagement(e.engagement_id).status == "DRAFT"
+
+    repo.update_submission_status(
+        e.engagement_id, sub.submission_id,
+        SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value,
+    )
+    assert repo.get_engagement(e.engagement_id).status == "EXTRACTING"
+
+    # The path a failed sanity check takes, which no API call is involved in.
+    repo.update_submission_status(
+        e.engagement_id, sub.submission_id,
+        SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value,
+    )
+    assert repo.get_engagement(e.engagement_id).status == "IN_UNDERWRITING"
+
+
+def test_a_losing_transition_leaves_the_denormalized_status_alone(repo):
+    """A conflicting write must not move the engagement's copy either."""
+    e = _eng(repo)
+    repo.put_submission(
+        Submission(
+            engagement_id=e.engagement_id, submission_id="s1",
+            created_at=utcnow(), updated_at=utcnow(),
+        )
+    )
+    with pytest.raises(ConflictError):
+        repo.update_submission_status(
+            e.engagement_id, "s1",
+            SubmissionStatus.IN_UNDERWRITING.value, SubmissionStatus.ACTIVE.value,
+        )
+    assert repo.get_engagement(e.engagement_id).status == "DRAFT"
