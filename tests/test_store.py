@@ -19,6 +19,45 @@ from app.store.models import (
 from app.store.repository import ConflictError, Repository, new_id, utcnow
 
 TABLE = "wheels-test"
+VEHICLES_TABLE = "wheels-test-vehicles"
+
+
+def _make_vehicles_table(ddb):
+    """Same PK/SK + GSI1 + GSI2 shape as the real vehicles table."""
+    ddb.create_table(
+        TableName=VEHICLES_TABLE,
+        KeySchema=[
+            {"AttributeName": "PK", "KeyType": "HASH"},
+            {"AttributeName": "SK", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "PK", "AttributeType": "S"},
+            {"AttributeName": "SK", "AttributeType": "S"},
+            {"AttributeName": "GSI1PK", "AttributeType": "S"},
+            {"AttributeName": "GSI1SK", "AttributeType": "S"},
+            {"AttributeName": "GSI2PK", "AttributeType": "S"},
+            {"AttributeName": "GSI2SK", "AttributeType": "S"},
+        ],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "GSI1",
+                "KeySchema": [
+                    {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+                    {"AttributeName": "GSI1SK", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "GSI2",
+                "KeySchema": [
+                    {"AttributeName": "GSI2PK", "KeyType": "HASH"},
+                    {"AttributeName": "GSI2SK", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
 
 
 @pytest.fixture
@@ -36,6 +75,8 @@ def repo():
                 {"AttributeName": "SK", "AttributeType": "S"},
                 {"AttributeName": "GSI1PK", "AttributeType": "S"},
                 {"AttributeName": "GSI1SK", "AttributeType": "S"},
+                {"AttributeName": "GSI2PK", "AttributeType": "S"},
+                {"AttributeName": "GSI2SK", "AttributeType": "S"},
             ],
             GlobalSecondaryIndexes=[
                 {
@@ -45,11 +86,20 @@ def repo():
                         {"AttributeName": "GSI1SK", "KeyType": "RANGE"},
                     ],
                     "Projection": {"ProjectionType": "ALL"},
-                }
+                },
+                {
+                    "IndexName": "GSI2",
+                    "KeySchema": [
+                        {"AttributeName": "GSI2PK", "KeyType": "HASH"},
+                        {"AttributeName": "GSI2SK", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
             ],
             BillingMode="PAY_PER_REQUEST",
         )
-        yield Repository(table_name=TABLE, resource=ddb)
+        _make_vehicles_table(ddb)
+        yield Repository(table_name=TABLE, resource=ddb, vehicles_table_name=VEHICLES_TABLE)
 
 
 def _eng(repo):

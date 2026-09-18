@@ -43,6 +43,9 @@ class Settings:
 
     # --- Storage ---
     table_name: str = field(default_factory=lambda: os.getenv("TABLE_NAME", "wheels"))
+    vehicles_table_name: str = field(
+        default_factory=lambda: os.getenv("VEHICLES_TABLE_NAME", "wheels-vehicles")
+    )
     docs_bucket: str = field(default_factory=lambda: os.getenv("DOCS_BUCKET", "wheels-docs-local"))
 
     # --- Auth / UI ---

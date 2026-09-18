@@ -7,8 +7,16 @@ from pydantic import BaseModel
 
 from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
+from ..billing.fleet import effective_fleet_size, fleet_source, is_locked
 from ..lifecycle.submission_state import Role
-from ..store.models import AuditEvent, Engagement, Membership, Submission
+from ..store.models import (
+    AuditEvent,
+    Engagement,
+    EngagementScope,
+    Membership,
+    Submission,
+    required_doc_types,
+)
 from ..store.repository import Repository, new_id, utcnow
 from ..store.s3 import S3Store
 
@@ -17,7 +25,15 @@ router = APIRouter(tags=["engagements"])
 
 class CreateEngagementIn(BaseModel):
     name: str
-    client_name: str
+    client_name: str | None = None  # legacy free-text path; ignored when customer_id is given
+    customer_id: str | None = None
+    scope: str = EngagementScope.LEASE_AND_SERVICE.value
+
+
+class UpdateEngagementIn(BaseModel):
+    name: str | None = None
+    scope: str | None = None
+    customer_id: str | None = None
 
 
 class InviteIn(BaseModel):
@@ -26,7 +42,9 @@ class InviteIn(BaseModel):
 
 
 class FleetIn(BaseModel):
-    fleet_size: int
+    """`null` clears the override and reverts to the derived vehicle count."""
+
+    fleet_size: int | None = None
 
 
 def _audit(repo: Repository, engagement_id: str, actor: Principal, action: str, **kw) -> None:
@@ -47,10 +65,22 @@ def create_engagement(
 ):
     if not principal.is_provider:
         raise HTTPException(403, "only provider-side users can create engagements")
+    if body.scope not in {s.value for s in EngagementScope}:
+        raise HTTPException(400, f"scope must be one of {[s.value for s in EngagementScope]}")
+    customer_id, client_name = body.customer_id, (body.client_name or "").strip()
+    if customer_id:
+        customer = repo.get_customer(customer_id)
+        if customer is None:
+            raise HTTPException(404, "customer not found")
+        client_name = customer.legal_name
+    elif not client_name:
+        raise HTTPException(400, "customer_id or client_name is required")
     eid = new_id()
     engagement = repo.put_engagement(
         Engagement(
-            engagement_id=eid, name=body.name, client_name=body.client_name,
+            engagement_id=eid, name=body.name, client_name=client_name,
+            customer_id=customer_id, scope=body.scope,
+            fleet_size_override=None, fleet_size=0,
             created_by=principal.user_id, created_at=utcnow(),
         )
     )
@@ -104,13 +134,59 @@ def get_engagement(
             "pct": round(100 * approved / len(elected)) if elected else 100,
         }
         documents.append(item)
+    sub = submissions[0] if submissions else None
+    required = required_doc_types(engagement.scope)
+    present = set(sub.docs()) if sub else set()
+    assigned = repo.count_vehicles_for_engagement(engagement_id)
     return {
         "engagement": engagement,
+        "customer": repo.get_customer(engagement.customer_id)
+        if engagement.customer_id
+        else None,
         "members": repo.list_members(engagement_id),
         "your_role": member.role,
-        "submission": submissions[0] if submissions else None,
+        "submission": sub,
         "documents": documents,
+        "required_doc_types": list(required),
+        "missing_doc_types": [t for t in required if t not in present],
+        "assigned_vehicle_count": assigned,
+        "fleet_size_source": fleet_source(engagement.fleet_size_override),
     }
+
+
+@router.patch("/engagements/{engagement_id}")
+def update_engagement(
+    engagement_id: str,
+    body: UpdateEngagementIn,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Rename an engagement, move it to another customer, or change its scope.
+
+    Scope is only editable while the terms are still internal: once the client has been asked
+    to approve, the set of agreements under negotiation is settled.
+    """
+    engagement = repo.get_engagement(engagement_id)
+    if engagement is None:
+        raise HTTPException(404, "engagement not found")
+    if body.name:
+        repo.set_engagement_name(engagement_id, body.name)
+    if body.customer_id:
+        customer = repo.get_customer(body.customer_id)
+        if customer is None:
+            raise HTTPException(404, "customer not found")
+        repo.set_engagement_customer(engagement_id, body.customer_id, customer.legal_name)
+    if body.scope:
+        if body.scope not in {s.value for s in EngagementScope}:
+            raise HTTPException(400, f"scope must be one of {[s.value for s in EngagementScope]}")
+        subs = repo.list_submissions(engagement_id)
+        status = subs[0].status.value if subs else "DRAFT"
+        if status not in ("DRAFT", "EXTRACTING", "IN_UNDERWRITING"):
+            raise HTTPException(409, "scope is locked once the client has been asked to approve")
+        repo.set_engagement_scope(engagement_id, body.scope)
+        _audit(repo, engagement_id, principal, "engagement_scope_changed", comment=body.scope)
+    return {"engagement": repo.get_engagement(engagement_id)}
 
 
 @router.get("/engagements/{engagement_id}/audit")
@@ -178,6 +254,11 @@ def get_billing(
         "status": sub.status.value,
         "signature": sub.client_signature,
         "fleet_size": fleet_size,
+        "fleet_size_override": engagement.fleet_size_override if engagement else None,
+        "assigned_vehicle_count": repo.count_vehicles_for_engagement(engagement_id),
+        "fleet_size_source": fleet_source(
+            engagement.fleet_size_override if engagement else None
+        ),
         "monthly_recurring": monthly_recurring,
         "frequency": frequency,
         "schedule": schedule,
@@ -218,18 +299,21 @@ def update_billing_settings(
     repo: Repository = Depends(get_repo),
     s3: S3Store = Depends(get_s3),
 ):
-    """Set the fleet size and recompute recurring dues from the generated billing config.
+    """Override the fleet size, or clear the override to fall back to the vehicle count.
 
-    Fleet size is finalized during the approval stages; once billing is active it is locked.
+    Fleet size is finalized during the approval stages; once billing is active it is locked,
+    because the payment schedule recomputes unpaid installments from the current dues.
     """
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     subs = repo.list_submissions(engagement_id)
     sub = subs[0] if subs else None
-    if sub and sub.status.value in ("BILLING_SETUP", "ACTIVE"):
+    if sub and is_locked(sub.status.value):
         raise HTTPException(409, "fleet size is locked once billing is active")
-    fleet = max(1, body.fleet_size)
+    repo.set_fleet_override(engagement_id, body.fleet_size)
+    assigned = repo.count_vehicles_for_engagement(engagement_id)
+    fleet = effective_fleet_size(assigned, body.fleet_size)
     monthly = None
     if sub is not None:
         import json
@@ -243,4 +327,10 @@ def update_billing_settings(
         except Exception:  # noqa: BLE001 - config only exists once billing is set up
             monthly = None
     repo.set_engagement_billing(engagement_id, fleet, monthly)
-    return {"fleet_size": fleet, "monthly_recurring": monthly}
+    return {
+        "fleet_size": fleet,
+        "fleet_size_override": body.fleet_size,
+        "assigned_vehicle_count": assigned,
+        "fleet_size_source": fleet_source(body.fleet_size),
+        "monthly_recurring": monthly,
+    }

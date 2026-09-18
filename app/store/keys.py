@@ -77,3 +77,51 @@ def review_gsi1sk(needs_review: bool, confidence: float) -> str:
 
 def lcstatus_gsi1pk(status: str) -> str:
     return f"LCSTATUS#{status}"
+
+
+# --- Customers (main table) ---
+def org_customers_pk() -> str:
+    """All customers live in one small partition, mirroring ORG#PROVIDERS."""
+    return "ORG#CUSTOMERS"
+
+
+def customer_sk(customer_id: str) -> str:
+    return f"CUST#{customer_id}"
+
+
+# --- GSI2 (customer -> engagements) ---
+def customer_gsi2pk(customer_id: str) -> str:
+    return f"CUST#{customer_id}"
+
+
+# --- Vehicles (separate table) ---
+def vehicle_pk(vehicle_id: str) -> str:
+    return f"VEH#{vehicle_id}"
+
+
+def vehicle_meta_sk() -> str:
+    return "#META"
+
+
+def assignment_sk(ts: str, assignment_id: str) -> str:
+    return f"ASG#{ts}#{assignment_id}"
+
+
+def fleet_gsi1pk(ownership: str) -> str:
+    """Inventory partition, one per ownership class (WHEELS_OWNED / CUSTOMER_OWNED)."""
+    return f"FLEET#{ownership}"
+
+
+def vehicle_gsi1sk(status: str, duty_band: str, vehicle_id: str) -> str:
+    """Sorts by status then duty band so the inventory page can begins_with-slice either."""
+    return f"ST#{status}#DUTY#{duty_band}#VEH#{vehicle_id}"
+
+
+def vehicle_gsi2pk(engagement_id: str) -> str:
+    """GSI2 is sparse: only assigned vehicles carry it, so there is no hot 'unassigned'
+    partition. Unassigned stock is listed off GSI1 with a status prefix instead."""
+    return f"ENG#{engagement_id}"
+
+
+def vehicle_gsi2sk(vehicle_id: str) -> str:
+    return f"VEH#{vehicle_id}"

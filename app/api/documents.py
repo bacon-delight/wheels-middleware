@@ -11,7 +11,13 @@ from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require
 from ..auth.principal import Principal
 from ..lifecycle.submission_state import Role
 from ..objects import page_key, source_pdf_key
-from ..store.models import AuditEvent, Document, DocumentVersion, Membership
+from ..store.models import (
+    AuditEvent,
+    Document,
+    DocumentVersion,
+    Membership,
+    required_doc_types,
+)
 from ..store.repository import Repository, new_id, utcnow
 from ..store.s3 import S3Store
 
@@ -38,15 +44,19 @@ def presign_upload(
     repo: Repository = Depends(get_repo),
     s3: S3Store = Depends(get_s3),
 ):
-    if body.doc_type not in ("MSA", "MLA"):
-        raise HTTPException(400, "doc_type must be MSA or MLA")
+    # Which agreements apply is driven by what the customer bought, not a fixed pair.
+    engagement = repo.get_engagement(engagement_id)
+    allowed = required_doc_types(engagement.scope if engagement else None)
+    if body.doc_type not in allowed:
+        raise HTTPException(
+            400,
+            f"doc_type must be one of {list(allowed)} for this engagement's scope",
+        )
 
     # Re-uploading a slot creates a NEW VERSION of the same document rather than a duplicate
     # (a failed first upload must not leave a phantom document behind).
     sub = repo.get_submission(engagement_id, body.submission_id)
-    slot_id = None
-    if sub is not None:
-        slot_id = sub.msa_document_id if body.doc_type == "MSA" else sub.mla_document_id
+    slot_id = sub.docs().get(body.doc_type) if sub is not None else None
 
     existing = repo.get_document(engagement_id, slot_id) if slot_id else None
     if existing is not None:
@@ -65,10 +75,8 @@ def presign_upload(
             )
         )
         if sub is not None:
-            if body.doc_type == "MSA":
-                sub.msa_document_id = document_id
-            else:
-                sub.mla_document_id = document_id
+            for attr, value in sub.with_doc(body.doc_type, document_id).items():
+                setattr(sub, attr, value)
             sub.updated_at = utcnow()
             repo.put_submission(sub)
 

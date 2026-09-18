@@ -33,9 +33,7 @@ def build_billing_config(
     if sub is None:
         return config
 
-    for document_id in (sub.msa_document_id, sub.mla_document_id):
-        if not document_id:
-            continue
+    for document_id in sub.docs().values():
         doc = repo.get_document(engagement_id, document_id)
         if doc is None:
             continue

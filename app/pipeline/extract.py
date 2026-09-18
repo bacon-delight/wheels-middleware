@@ -16,6 +16,20 @@ from ..store.s3 import S3Store
 log = logging.getLogger(__name__)
 
 
+def _all_documents_extracted(repo, eid: str, sub) -> bool:
+    """True once every document slot on the submission has a fully extracted current version."""
+    slots = sub.docs().values()
+    if not slots:
+        return False
+    for document_id in slots:
+        doc = repo.get_document(eid, document_id)
+        if doc is None:
+            return False
+        version = repo.get_document_version(eid, document_id, doc.current_version)
+        if version is None or version.status != "extracted":
+            return False
+    return True
+
 def handler(event, context=None):
     for record in event.get("Records", []):
         _process(json.loads(record["body"]))
@@ -65,15 +79,20 @@ def _process(body: dict) -> None:
             notes="Covers: " + ", ".join(bf.get("covers_services", [])),
         )
 
-    # First document to finish advances the submission; the second is a harmless no-op.
-    try:
-        repo.update_submission_status(eid, sid, "EXTRACTING", "IN_UNDERWRITING")
-        emit_lifecycle_event(
-            "pipeline_done",
-            {"engagement_id": eid, "submission_id": sid, "status": "IN_UNDERWRITING"},
-        )
-    except ConflictError:
-        pass
+    # Advance only once every document on the submission has been extracted. With a variable
+    # agreement set, "first one wins" would push a two-agreement engagement into underwriting
+    # with half its terms missing. The guard keys off the documents actually attached, not the
+    # scope's required set, because submit-for-processing already refused to start without them.
+    sub = repo.get_submission(eid, sid)
+    if sub is not None and _all_documents_extracted(repo, eid, sub):
+        try:
+            repo.update_submission_status(eid, sid, "EXTRACTING", "IN_UNDERWRITING")
+            emit_lifecycle_event(
+                "pipeline_done",
+                {"engagement_id": eid, "submission_id": sid, "status": "IN_UNDERWRITING"},
+            )
+        except ConflictError:
+            pass
     log.info(
         "extracted %s/%s v%s tokens_in=%s tokens_out=%s unresolved_cites=%s",
         eid, did, ver, result.input_tokens, result.output_tokens, result.unresolved_citations,

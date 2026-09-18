@@ -31,12 +31,49 @@ def _make_table(ddb):
             {"AttributeName": "SK", "AttributeType": "S"},
             {"AttributeName": "GSI1PK", "AttributeType": "S"},
             {"AttributeName": "GSI1SK", "AttributeType": "S"},
+            {"AttributeName": "GSI2PK", "AttributeType": "S"},
+            {"AttributeName": "GSI2SK", "AttributeType": "S"},
         ],
-        GlobalSecondaryIndexes=[{
-            "IndexName": "GSI1",
-            "KeySchema": [{"AttributeName": "GSI1PK", "KeyType": "HASH"}, {"AttributeName": "GSI1SK", "KeyType": "RANGE"}],
-            "Projection": {"ProjectionType": "ALL"},
-        }],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "GSI1",
+                "KeySchema": [{"AttributeName": "GSI1PK", "KeyType": "HASH"}, {"AttributeName": "GSI1SK", "KeyType": "RANGE"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "GSI2",
+                "KeySchema": [{"AttributeName": "GSI2PK", "KeyType": "HASH"}, {"AttributeName": "GSI2SK", "KeyType": "RANGE"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+
+
+def _make_vehicles_table(ddb):
+    ddb.create_table(
+        TableName="wheels-test-vehicles",
+        KeySchema=[{"AttributeName": "PK", "KeyType": "HASH"}, {"AttributeName": "SK", "KeyType": "RANGE"}],
+        AttributeDefinitions=[
+            {"AttributeName": "PK", "AttributeType": "S"},
+            {"AttributeName": "SK", "AttributeType": "S"},
+            {"AttributeName": "GSI1PK", "AttributeType": "S"},
+            {"AttributeName": "GSI1SK", "AttributeType": "S"},
+            {"AttributeName": "GSI2PK", "AttributeType": "S"},
+            {"AttributeName": "GSI2SK", "AttributeType": "S"},
+        ],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "GSI1",
+                "KeySchema": [{"AttributeName": "GSI1PK", "KeyType": "HASH"}, {"AttributeName": "GSI1SK", "KeyType": "RANGE"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "GSI2",
+                "KeySchema": [{"AttributeName": "GSI2PK", "KeyType": "HASH"}, {"AttributeName": "GSI2SK", "KeyType": "RANGE"}],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
         BillingMode="PAY_PER_REQUEST",
     )
 
@@ -46,9 +83,12 @@ def ctx():
     with mock_aws():
         ddb = boto3.resource("dynamodb", region_name=REGION)
         _make_table(ddb)
+        _make_vehicles_table(ddb)
         s3c = boto3.client("s3", region_name=REGION)
         s3c.create_bucket(Bucket="wheels-test-docs", CreateBucketConfiguration={"LocationConstraint": REGION})
-        repo = Repository(table_name="wheels-test", resource=ddb)
+        repo = Repository(
+            table_name="wheels-test", resource=ddb, vehicles_table_name="wheels-test-vehicles"
+        )
         s3 = S3Store(bucket="wheels-test-docs", client=s3c)
 
         state = {"principal": Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"])}
@@ -154,6 +194,9 @@ def _drive_to_active(client, repo, state, sid_holder):
         engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
         elected=True, confidence=0.95, needs_review=False, approved=True,
         fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    # No vehicles are assigned here, so the derived fleet is 0; the provider sets the billed
+    # size explicitly during the approval stages, as they would in the real flow.
+    client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 100})
     client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
     repo.put_membership(Membership(engagement_id=eid, user_id="client1", email="c@apex.com", role=Role.CLIENT, created_at=utcnow()))
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))

@@ -107,9 +107,7 @@ def _changes_and_versions(repo: Repository, sub: Submission) -> tuple[list[dict]
     eid = sub.engagement_id
     changes: list[dict[str, Any]] = []
     sig_parts: list[str] = []
-    for did in (sub.msa_document_id, sub.mla_document_id):
-        if not did:
-            continue
+    for did in sub.docs().values():
         doc = repo.get_document(eid, did)
         if not doc:
             continue

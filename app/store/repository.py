@@ -20,6 +20,7 @@ from ..lifecycle.submission_state import Role
 from . import keys as k
 from .models import (
     AuditEvent,
+    Customer,
     Document,
     DocumentVersion,
     Engagement,
@@ -29,6 +30,9 @@ from .models import (
     ReviewField,
     Submission,
     UserProfile,
+    Vehicle,
+    VehicleAssignment,
+    VehicleStatus,
 )
 
 
@@ -59,13 +63,31 @@ class ConflictError(Exception):
 
 
 class Repository:
-    def __init__(self, table_name: str | None = None, resource=None):
-        self.table_name = table_name or get_settings().table_name
+    """One handle per table: the main single-table store plus the vehicle inventory.
+
+    Vehicles live apart because inventory listing is an org-wide access pattern with a much
+    larger row count than the engagement workflow; keeping it here would have meant a hot
+    synthetic partition or a scan.
+    """
+
+    def __init__(
+        self,
+        table_name: str | None = None,
+        resource=None,
+        vehicles_table_name: str | None = None,
+    ):
+        settings = get_settings()
+        self.table_name = table_name or settings.table_name
+        self.vehicles_table_name = vehicles_table_name or settings.vehicles_table_name
         if resource is None:
             import boto3
 
-            resource = boto3.resource("dynamodb", region_name=get_settings().core_region)
+            resource = boto3.resource("dynamodb", region_name=settings.core_region)
         self.table = resource.Table(self.table_name)
+        self.vehicles = resource.Table(self.vehicles_table_name)
+
+    def _put_vehicle_item(self, item: dict[str, Any]) -> None:
+        self.vehicles.put_item(Item=_to_decimal(item))
 
     # --- serialization helpers ---
     def _put(self, item: dict[str, Any]) -> None:
@@ -82,7 +104,7 @@ class Repository:
         if not item:
             return None
         data = _to_native(item)
-        for meta in ("PK", "SK", "type", "GSI1PK", "GSI1SK"):
+        for meta in ("PK", "SK", "type", "GSI1PK", "GSI1SK", "GSI2PK", "GSI2SK"):
             data.pop(meta, None)
         return model_cls.model_validate(data)
 
@@ -104,10 +126,17 @@ class Repository:
 
     # --- Engagement ---
     def put_engagement(self, e: Engagement) -> Engagement:
+        gsi: dict[str, str] = {
+            "GSI1PK": k.lcstatus_gsi1pk(e.status),
+            "GSI1SK": k.eng_pk(e.engagement_id),
+        }
+        if e.customer_id:
+            # GSI2 answers "this customer's engagements" without a scan.
+            gsi["GSI2PK"] = k.customer_gsi2pk(e.customer_id)
+            gsi["GSI2SK"] = k.eng_pk(e.engagement_id)
         self._put(
             self._model_item(
-                e, k.eng_pk(e.engagement_id), k.engagement_meta_sk(), "ENGAGEMENT",
-                GSI1PK=k.lcstatus_gsi1pk(e.status), GSI1SK=k.eng_pk(e.engagement_id),
+                e, k.eng_pk(e.engagement_id), k.engagement_meta_sk(), "ENGAGEMENT", **gsi
             )
         )
         return e
@@ -154,6 +183,101 @@ class Repository:
             Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
             UpdateExpression="SET billing_start = :s, billing_frequency = :f",
             ExpressionAttributeValues={":s": billing_start, ":f": billing_frequency},
+        )
+
+    # --- Customers ---
+    def put_customer(self, c: Customer) -> Customer:
+        self._put(
+            self._model_item(c, k.org_customers_pk(), k.customer_sk(c.customer_id), "CUSTOMER")
+        )
+        return c
+
+    def get_customer(self, customer_id: str) -> Customer | None:
+        r = self.table.get_item(
+            Key={"PK": k.org_customers_pk(), "SK": k.customer_sk(customer_id)}
+        )
+        return self._load(r.get("Item"), Customer)
+
+    def list_customers(self) -> list[Customer]:
+        """One query on a small dedicated partition — no scan."""
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": Key("PK").eq(k.org_customers_pk())
+            & Key("SK").begins_with("CUST#")
+        }
+        while True:
+            r = self.table.query(**kwargs)
+            items.extend(r.get("Items", []))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                break
+            kwargs["ExclusiveStartKey"] = lek
+        return [self._load(i, Customer) for i in items]
+
+    def update_customer(self, customer_id: str, patch: dict[str, Any]) -> Customer | None:
+        if not patch:
+            return self.get_customer(customer_id)
+        names, values, sets = {}, {":now": utcnow()}, ["updated_at = :now"]
+        for i, (key, val) in enumerate(patch.items()):
+            names[f"#p{i}"] = key
+            values[f":p{i}"] = val
+            sets.append(f"#p{i} = :p{i}")
+        r = self.table.update_item(
+            Key={"PK": k.org_customers_pk(), "SK": k.customer_sk(customer_id)},
+            UpdateExpression="SET " + ", ".join(sets),
+            ConditionExpression="attribute_exists(PK)",
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=_to_decimal(values),
+            ReturnValues="ALL_NEW",
+        )
+        return self._load(r["Attributes"], Customer)
+
+    def list_customer_engagements(self, customer_id: str) -> list[Engagement]:
+        """GSI2: customer -> engagements."""
+        r = self.table.query(
+            IndexName="GSI2",
+            KeyConditionExpression=Key("GSI2PK").eq(k.customer_gsi2pk(customer_id)),
+        )
+        return [self._load(i, Engagement) for i in r.get("Items", [])]
+
+    def set_engagement_customer(
+        self, engagement_id: str, customer_id: str, client_name: str
+    ) -> None:
+        """Link an engagement to a customer and write the GSI2 keys that index it."""
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression=(
+                "SET customer_id = :c, client_name = :n, GSI2PK = :g2p, GSI2SK = :g2s"
+            ),
+            ExpressionAttributeValues={
+                ":c": customer_id,
+                ":n": client_name,
+                ":g2p": k.customer_gsi2pk(customer_id),
+                ":g2s": k.eng_pk(engagement_id),
+            },
+        )
+
+    def set_engagement_scope(self, engagement_id: str, scope: str) -> None:
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET #sc = :s",
+            ExpressionAttributeNames={"#sc": "scope"},
+            ExpressionAttributeValues={":s": scope},
+        )
+
+    def set_engagement_name(self, engagement_id: str, name: str) -> None:
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET #n = :n",
+            ExpressionAttributeNames={"#n": "name"},
+            ExpressionAttributeValues={":n": name},
+        )
+
+    def set_fleet_override(self, engagement_id: str, override: int | None) -> None:
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression="SET fleet_size_override = :o",
+            ExpressionAttributeValues=_to_decimal({":o": override}),
         )
 
     # --- Payments (billing schedule) ---
@@ -410,3 +534,165 @@ class Repository:
             ScanIndexForward=False,
         )
         return [self._load(i, AuditEvent) for i in r.get("Items", [])]
+
+    # --- Vehicles (separate inventory table) ---
+    def _vehicle_item(self, v: Vehicle) -> dict[str, Any]:
+        item = v.model_dump(mode="json")
+        item.update(
+            {
+                "PK": k.vehicle_pk(v.vehicle_id),
+                "SK": k.vehicle_meta_sk(),
+                "type": "VEHICLE",
+                "GSI1PK": k.fleet_gsi1pk(v.ownership),
+                "GSI1SK": k.vehicle_gsi1sk(v.status, v.duty_band, v.vehicle_id),
+            }
+        )
+        # GSI2 is sparse: written only while the vehicle is assigned.
+        if v.engagement_id:
+            item["GSI2PK"] = k.vehicle_gsi2pk(v.engagement_id)
+            item["GSI2SK"] = k.vehicle_gsi2sk(v.vehicle_id)
+        return item
+
+    def put_vehicle(self, v: Vehicle) -> Vehicle:
+        self._put_vehicle_item(self._vehicle_item(v))
+        return v
+
+    def get_vehicle(self, vehicle_id: str) -> Vehicle | None:
+        r = self.vehicles.get_item(
+            Key={"PK": k.vehicle_pk(vehicle_id), "SK": k.vehicle_meta_sk()}
+        )
+        return self._load(r.get("Item"), Vehicle)
+
+    def list_vehicles_by_ownership(
+        self, ownership: str, status: str | None = None, duty_band: str | None = None
+    ) -> list[Vehicle]:
+        """GSI1: one partition per ownership class, sliced by the status/duty sort key."""
+        cond = Key("GSI1PK").eq(k.fleet_gsi1pk(ownership))
+        if status and duty_band:
+            cond = cond & Key("GSI1SK").begins_with(f"ST#{status}#DUTY#{duty_band}#")
+        elif status:
+            cond = cond & Key("GSI1SK").begins_with(f"ST#{status}#")
+        return self._query_vehicles("GSI1", cond, duty_band if not status else None)
+
+    def list_vehicles_by_engagement(self, engagement_id: str) -> list[Vehicle]:
+        """GSI2: vehicles currently assigned to one engagement."""
+        return self._query_vehicles(
+            "GSI2", Key("GSI2PK").eq(k.vehicle_gsi2pk(engagement_id)), None
+        )
+
+    def _query_vehicles(self, index: str, cond, duty_band: str | None) -> list[Vehicle]:
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {"IndexName": index, "KeyConditionExpression": cond}
+        while True:
+            r = self.vehicles.query(**kwargs)
+            items.extend(r.get("Items", []))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                break
+            kwargs["ExclusiveStartKey"] = lek
+        out = [self._load(i, Vehicle) for i in items]
+        if duty_band:
+            out = [v for v in out if v.duty_band == duty_band]
+        return out
+
+    def vehicle_status_count(self, ownership: str, status: str) -> int:
+        """Inventory tile counts. Select=COUNT transfers no items."""
+        total, kwargs = 0, {
+            "IndexName": "GSI1",
+            "KeyConditionExpression": Key("GSI1PK").eq(k.fleet_gsi1pk(ownership))
+            & Key("GSI1SK").begins_with(f"ST#{status}#"),
+            "Select": "COUNT",
+        }
+        while True:
+            r = self.vehicles.query(**kwargs)
+            total += r.get("Count", 0)
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                return total
+            kwargs["ExclusiveStartKey"] = lek
+
+    def count_vehicles_for_engagement(self, engagement_id: str) -> int:
+        """Drives the derived fleet size. Uses Select=COUNT so nothing is transferred."""
+        total, kwargs = 0, {
+            "IndexName": "GSI2",
+            "KeyConditionExpression": Key("GSI2PK").eq(k.vehicle_gsi2pk(engagement_id)),
+            "Select": "COUNT",
+        }
+        while True:
+            r = self.vehicles.query(**kwargs)
+            total += r.get("Count", 0)
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                return total
+            kwargs["ExclusiveStartKey"] = lek
+
+    def update_vehicle(self, vehicle_id: str, patch: dict[str, Any]) -> Vehicle | None:
+        """Re-put the whole item so the three index key pairs stay consistent with it."""
+        current = self.get_vehicle(vehicle_id)
+        if current is None:
+            return None
+        merged = current.model_dump(mode="json") | patch
+        merged["updated_at"] = utcnow()
+        updated = Vehicle.model_validate(merged)
+        self._put_vehicle_item(self._vehicle_item(updated))
+        return updated
+
+    def assign_vehicle(
+        self, vehicle_id: str, engagement_id: str, customer_id: str | None, actor_id: str
+    ) -> Vehicle | None:
+        now = utcnow()
+        v = self.update_vehicle(
+            vehicle_id,
+            {
+                "engagement_id": engagement_id,
+                "customer_id": customer_id,
+                "assigned_at": now,
+                "status": VehicleStatus.ASSIGNED.value,
+            },
+        )
+        if v is None:
+            return None
+        self.put_vehicle_assignment(
+            VehicleAssignment(
+                vehicle_id=vehicle_id, assignment_id=new_id(), engagement_id=engagement_id,
+                customer_id=customer_id, assigned_at=now, assigned_by=actor_id,
+            )
+        )
+        return v
+
+    def release_vehicle(self, vehicle_id: str) -> Vehicle | None:
+        """Send a unit back to stock. Customer-owned units go to ON_ORDER, never IN_STOCK."""
+        current = self.get_vehicle(vehicle_id)
+        if current is None:
+            return None
+        from .models import VehicleOwnership
+
+        back = (
+            VehicleStatus.IN_STOCK.value
+            if current.ownership == VehicleOwnership.WHEELS_OWNED.value
+            else VehicleStatus.ON_ORDER.value
+        )
+        return self.update_vehicle(
+            vehicle_id,
+            {"engagement_id": None, "assigned_at": None, "status": back},
+        )
+
+    def put_vehicle_assignment(self, a: VehicleAssignment) -> VehicleAssignment:
+        item = a.model_dump(mode="json")
+        item.update(
+            {
+                "PK": k.vehicle_pk(a.vehicle_id),
+                "SK": k.assignment_sk(a.assigned_at, a.assignment_id),
+                "type": "VEHICLE_ASSIGNMENT",
+            }
+        )
+        self._put_vehicle_item(item)
+        return a
+
+    def list_vehicle_assignments(self, vehicle_id: str) -> list[VehicleAssignment]:
+        r = self.vehicles.query(
+            KeyConditionExpression=Key("PK").eq(k.vehicle_pk(vehicle_id))
+            & Key("SK").begins_with("ASG#"),
+            ScanIndexForward=False,
+        )
+        return [self._load(i, VehicleAssignment) for i in r.get("Items", [])]
