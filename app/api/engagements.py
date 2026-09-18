@@ -117,6 +117,18 @@ def list_engagements(
     return {"engagements": engagements}
 
 
+def _coverage_summary(repo: Repository, engagement_id: str) -> dict[str, int]:
+    """How many of Wheels' services this engagement's agreements show it buying."""
+    try:
+        from ..catalog.store import load_snapshot
+
+        snapshot = load_snapshot(repo)
+        availed = {c.program_id for c in repo.list_coverage(engagement_id)}
+        return {"availed": len(availed), "total": len(snapshot.active_programs)}
+    except Exception:  # noqa: BLE001 - a headline number must not break the page
+        return {"availed": 0, "total": 0}
+
+
 @router.get("/engagements/{engagement_id}")
 def get_engagement(
     engagement_id: str,
@@ -130,20 +142,31 @@ def get_engagement(
     sub = repo.current_submission(engagement_id)
     live = repo.live_submission(engagement_id)
     documents = []
+    total_terms = approved_terms = 0
     for d in repo.list_documents(engagement_id):
-        fields = repo.list_fields(engagement_id, d.document_id, d.current_version)
-        elected = [f for f in fields if f.elected]
-        approved = sum(1 for f in elected if f.approved)
+        # Counts, not bodies. A contract now yields several hundred terms per document and this
+        # is the page every engagement view loads first.
+        counts = repo.term_counts(engagement_id, d.document_id, d.current_version)
+        # Approval is demanded on pricing, where the money is. Requiring it across every
+        # definition and obligation would make the gate unreachable.
+        elected = counts["pricing_total"]
+        approved = min(counts["approved"], elected)
+        total_terms += counts["total"]
+        approved_terms += counts["approved"]
         item = d.model_dump(mode="json")
+        item["term_counts"] = counts["by_category"]
+        item["needs_review_count"] = counts["needs_review"]
         # Whether this particular agreement still needs reading, so the interface can offer
         # extraction on the documents that need it rather than on the engagement as a whole.
         version = repo.get_document_version(engagement_id, d.document_id, d.current_version)
         item["extraction_status"] = version.status if version else "missing"
         item["needs_extraction"] = version is None or version.status != "extracted"
+        # What the run cost, carried to wherever the document is shown.
+        item["extraction_run"] = version.extraction_run if version else None
         item["review"] = {
             "approved": approved,
-            "total": len(elected),
-            "pct": round(100 * approved / len(elected)) if elected else 100,
+            "total": elected,
+            "pct": round(100 * approved / elected) if elected else 100,
         }
         documents.append(item)
     # With scope derived, "required" describes what the agreements in force amount to rather
@@ -164,6 +187,9 @@ def get_engagement(
         "missing_doc_types": [t for t in required if t not in present],
         "assigned_vehicle_count": assigned,
         "fleet_size_source": fleet_source(engagement.fleet_size_override),
+        "term_counts": {"total": total_terms, "approved": approved_terms},
+        # A headline for the Services tab, so its badge renders without a second request.
+        "coverage_summary": _coverage_summary(repo, engagement_id),
         # An engagement can hold several review cycles: the agreements it started on, and one
         # per amendment since. `submission` above is the cycle in play; these say how it sits
         # among the others so the interface can show an amendment as a change to a live deal
