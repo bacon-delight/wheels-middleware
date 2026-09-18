@@ -117,6 +117,50 @@ def set_document_type(
     return {"ok": True, "scope": result["scope"]}
 
 
+# Once the terms are with the customer or finance, removing an agreement would pull the
+# ground out from under what they are reviewing. Before that, an upload is still a working
+# document and a wrong file should be removable outright.
+_DELETABLE_STATUSES = {
+    "DRAFT", "IN_UNDERWRITING", "VALIDATION_FAILED", "CHANGES_REQUESTED_CLIENT",
+}
+
+
+@router.delete("/engagements/{engagement_id}/documents/{document_id}", status_code=200)
+def delete_document(
+    engagement_id: str,
+    document_id: str,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
+):
+    """Remove an agreement uploaded in error, along with everything derived from it."""
+    doc = repo.get_document(engagement_id, document_id)
+    if doc is None:
+        raise HTTPException(404, "document not found")
+
+    subs = repo.list_submissions(engagement_id)
+    status = subs[0].status.value if subs else "DRAFT"
+    if status not in _DELETABLE_STATUSES:
+        raise HTTPException(
+            409, f"agreements cannot be removed while the submission is {status}"
+        )
+
+    removed = repo.delete_document(engagement_id, document_id)
+    # The rendered pages, the source PDF and the extraction all live under this prefix.
+    s3.delete_prefix(f"{engagement_id}/{document_id}/")
+    # Standing, scope and the submission's slots all shift when an agreement leaves.
+    result = reconcile_engagement(repo, engagement_id)
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=principal.group_role.value,
+            actor_name=principal.name, action="document_removed", target=doc.filename,
+        )
+    )
+    return {"ok": True, "items_removed": removed, "scope": result["scope"]}
+
+
 @router.get("/engagements/{engagement_id}/documents")
 def list_documents(
     engagement_id: str,

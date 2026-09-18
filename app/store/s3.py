@@ -50,3 +50,19 @@ class S3Store:
 
     def put_json(self, key: str, obj: Any) -> None:
         self.put_bytes(key, json.dumps(obj).encode(), "application/json")
+
+    def delete_prefix(self, prefix: str) -> int:
+        """Remove every object under a prefix. Used when a document is deleted outright."""
+        deleted, token = 0, None
+        while True:
+            kwargs = {"Bucket": self.bucket, "Prefix": prefix, "MaxKeys": 1000}
+            if token:
+                kwargs["ContinuationToken"] = token
+            r = self.client.list_objects_v2(**kwargs)
+            objects = [{"Key": o["Key"]} for o in r.get("Contents", [])]
+            if objects:
+                self.client.delete_objects(Bucket=self.bucket, Delete={"Objects": objects})
+                deleted += len(objects)
+            token = r.get("NextContinuationToken")
+            if not r.get("IsTruncated"):
+                return deleted

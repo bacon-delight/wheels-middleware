@@ -380,3 +380,58 @@ def test_a_single_document_can_be_extracted_on_its_own(ctx):  # noqa: F811
     _doc_version(repo, eid, did, "extracted")
     again = client.post(f"/engagements/{eid}/documents/{did}:extract")
     assert again.status_code == 409 and "already been extracted" in again.json()["detail"]
+
+
+def test_removing_an_agreement_takes_its_terms_and_scope_with_it(ctx):  # noqa: F811
+    """A wrong file is removable outright: leaving its extracted terms behind would keep them
+    in the billing config for an agreement nobody can see."""
+    client, repo, state = ctx
+    from app.store.models import ReviewField
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    lease = client.post(f"/engagements/{eid}/documents:presign",
+                        json={"doc_type": "MLA", "filename": "lease.pdf", "submission_id": sid},
+                        ).json()["document_id"]
+    wrong = client.post(f"/engagements/{eid}/documents:presign",
+                        json={"doc_type": "MSA", "filename": "wrong.pdf", "submission_id": sid},
+                        ).json()["document_id"]
+    repo.put_field(ReviewField(
+        engagement_id=eid, document_id=wrong, version=1, field_id="f1", service="Fuel",
+        elected=True, confidence=0.9, needs_review=False,
+        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[],
+    ))
+    assert client.get(f"/engagements/{eid}").json()["engagement"]["scope"] == "LEASE_AND_SERVICE"
+
+    gone = client.delete(f"/engagements/{eid}/documents/{wrong}")
+    assert gone.status_code == 200
+
+    d = client.get(f"/engagements/{eid}").json()
+    assert [x["document_id"] for x in d["documents"]] == [lease]
+    # Scope follows the agreements that remain, and the terms go with the document.
+    assert d["engagement"]["scope"] == "LEASE_ONLY"
+    assert repo.list_fields(eid, wrong, 1) == []
+    assert repo.list_submissions(eid)[0].docs() == {"MLA": lease}
+
+
+def test_an_agreement_cannot_be_removed_once_the_customer_is_reviewing(ctx):  # noqa: F811
+    client, repo, state = ctx
+    from app.lifecycle.submission_state import SubmissionStatus
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MLA", "filename": "a.pdf", "submission_id": sid},
+                      ).json()["document_id"]
+    for a, b in (
+        (SubmissionStatus.DRAFT, SubmissionStatus.EXTRACTING),
+        (SubmissionStatus.EXTRACTING, SubmissionStatus.IN_UNDERWRITING),
+        (SubmissionStatus.IN_UNDERWRITING, SubmissionStatus.PENDING_CLIENT_APPROVAL),
+    ):
+        repo.update_submission_status(eid, sid, a.value, b.value)
+
+    blocked = client.delete(f"/engagements/{eid}/documents/{did}")
+    assert blocked.status_code == 409
+    assert "PENDING_CLIENT_APPROVAL" in blocked.json()["detail"]

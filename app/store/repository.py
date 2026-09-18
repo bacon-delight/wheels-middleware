@@ -506,6 +506,30 @@ class Repository:
             ExpressionAttributeValues=_to_decimal(values),
         )
 
+    def delete_document(self, engagement_id: str, document_id: str) -> int:
+        """Remove a document and everything derived from it.
+
+        The document, its versions and its extracted review fields all share the `DOC#{id}`
+        sort-key prefix, so one query finds the lot. Leaving the fields behind would keep a
+        deleted agreement's terms in the billing config.
+        """
+        items, kwargs = [], {
+            "KeyConditionExpression": Key("PK").eq(k.eng_pk(engagement_id))
+            & Key("SK").begins_with(k.document_sk(document_id)),
+            "ProjectionExpression": "PK, SK",
+        }
+        while True:
+            r = self.table.query(**kwargs)
+            items.extend(r.get("Items", []))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                break
+            kwargs["ExclusiveStartKey"] = lek
+        with self.table.batch_writer() as batch:
+            for it in items:
+                batch.delete_item(Key={"PK": it["PK"], "SK": it["SK"]})
+        return len(items)
+
     def list_documents(self, engagement_id: str) -> list[Document]:
         r = self.table.query(
             KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
