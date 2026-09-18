@@ -13,6 +13,9 @@ from __future__ import annotations
 # housekeeping — belongs to the provider side.
 CLIENT_VISIBLE_ACTIONS: frozenset[str] = frozenset({
     "engagement_created",
+    # An amendment is a change to the deal the customer signed, so the fact one was opened is
+    # theirs to see — the documents and extraction behind it are not.
+    "amendment_opened",
     "submit_to_client",
     "client_approve",
     "client_request_changes",

@@ -56,9 +56,8 @@ def reconcile_engagement(repo: Repository, engagement_id: str) -> dict:
 
     # Only the agreements in force are under negotiation; superseded ones are record-keeping and
     # must not feed extraction, terms or billing.
-    subs = repo.list_submissions(engagement_id)
-    if subs:
-        sub = subs[0]
+    sub = repo.current_submission(engagement_id)
+    if sub is not None:
         slots = {d.doc_type: d.document_id for d in current if d.doc_type != "UNKNOWN"}
         if slots != sub.docs():
             sub.document_ids = slots

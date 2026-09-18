@@ -38,6 +38,16 @@ class FieldPatchIn(BaseModel):
     notes: str | None = None
 
 
+# When an upload can join the cycle in play. Mid-review the terms are with the customer or
+# finance and a document arriving underneath them would change what they are looking at; once
+# the cycle has completed, the deal is signed and billing, so a new agreement belongs to an
+# amendment rather than to the cycle that closed.
+_UPLOADABLE_STATUSES = {
+    "DRAFT", "IN_UNDERWRITING", "VALIDATION_FAILED",
+    "CHANGES_REQUESTED_CLIENT", "CHANGES_REQUESTED_FINANCE",
+}
+
+
 @router.post("/engagements/{engagement_id}/documents:presign", status_code=201)
 def presign_upload(
     engagement_id: str,
@@ -48,6 +58,16 @@ def presign_upload(
 ):
     if body.doc_type is not None and body.doc_type not in ("MSA", "MLA"):
         raise HTTPException(400, "doc_type must be MSA or MLA when given")
+
+    current = repo.current_submission(engagement_id)
+    status = current.status.value if current else "DRAFT"
+    if status not in _UPLOADABLE_STATUSES:
+        detail = (
+            "this engagement is live — open an amendment to add or renew an agreement"
+            if status == "ACTIVE"
+            else f"agreements cannot be uploaded while the submission is {status}"
+        )
+        raise HTTPException(409, detail)
 
     # An engagement can hold several agreements of the same type over its life — the one in
     # force plus superseded ones kept for the record — so an upload creates a new document
@@ -69,7 +89,8 @@ def presign_upload(
                 engagement_id=engagement_id, document_id=document_id,
                 doc_type=body.doc_type or "UNKNOWN",
                 type_overridden=body.doc_type is not None,
-                filename=body.filename, current_version=version, created_at=utcnow(),
+                filename=body.filename, current_version=version,
+                cycle=current.cycle if current else 1, created_at=utcnow(),
             )
         )
         # Standing and the submission's slots are settled once the type is known; if the
@@ -139,8 +160,8 @@ def delete_document(
     if doc is None:
         raise HTTPException(404, "document not found")
 
-    subs = repo.list_submissions(engagement_id)
-    status = subs[0].status.value if subs else "DRAFT"
+    current = repo.current_submission(engagement_id)
+    status = current.status.value if current else "DRAFT"
     if status not in _DELETABLE_STATUSES:
         raise HTTPException(
             409, f"agreements cannot be removed while the submission is {status}"

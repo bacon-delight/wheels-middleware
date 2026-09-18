@@ -95,8 +95,8 @@ def _sync_engagement_fleet(repo: Repository, engagement_id: str) -> int:
         return count
     fleet = effective_fleet_size(count, engagement.fleet_size_override)
     monthly = engagement.monthly_recurring
-    subs = repo.list_submissions(engagement_id)
-    if subs:
+    sub = repo.billing_submission(engagement_id)
+    if sub is not None:
         import json
 
         from ..billing.estimate import compute_monthly_recurring
@@ -104,7 +104,7 @@ def _sync_engagement_fleet(repo: Repository, engagement_id: str) -> int:
         from ..store.s3 import S3Store
 
         try:
-            raw = S3Store().get_bytes(billing_config_key(engagement_id, subs[0].submission_id))
+            raw = S3Store().get_bytes(billing_config_key(engagement_id, sub.submission_id))
             monthly = compute_monthly_recurring(json.loads(raw), fleet)
         except Exception:  # noqa: BLE001 - the config only exists once billing is set up
             pass

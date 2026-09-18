@@ -22,6 +22,7 @@ from ..auth.deps import get_repo, get_s3, require_provider_principal
 from ..auth.principal import Principal
 from ..billing.estimate import compute_monthly_recurring
 from ..billing.schedule import enrich, summarize
+from ..lifecycle.amendment import cycle_in_force
 from ..objects import billing_config_key
 from ..store.repository import Repository
 from ..store.s3 import S3Store
@@ -104,7 +105,13 @@ def finance_dashboard(
     s3: S3Store = Depends(get_s3),
 ):
     engagements = repo.list_all_engagements()
-    subs = {s.engagement_id: s for s in repo.list_all_submissions()}
+    # An engagement can hold several review cycles. Finance reads the one whose terms are in
+    # force and billing, which while an amendment is under review is the cycle before it —
+    # keying a plain dict by engagement would have kept whichever the scan returned last.
+    by_engagement: dict[str, list] = defaultdict(list)
+    for s in repo.list_all_submissions():
+        by_engagement[s.engagement_id].append(s)
+    subs = {eid: cycle_in_force(cycles) for eid, cycles in by_engagement.items()}
     customers = {c.customer_id: c for c in repo.list_customers()}
     payments_by_eid: dict[str, list] = defaultdict(list)
     for p in repo.list_all_payments():

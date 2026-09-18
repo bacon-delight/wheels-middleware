@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
+from ..lifecycle.amendment import can_open_amendment, cycle_label
 from ..lifecycle.submission_state import (
     Action,
     IllegalTransition,
@@ -141,6 +142,62 @@ def submit_for_processing(
     return {"submission": updated}
 
 
+@router.post("/engagements/{engagement_id}/amendments", status_code=201)
+def open_amendment(
+    engagement_id: str,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Open a further review cycle on a live engagement.
+
+    A renewal, an added lease or service, or a reissued document all change the terms, and
+    changed terms need the customer's and finance's approval before they can be billed. That
+    is the cycle this opens: a new submission starting at DRAFT, carrying forward the
+    agreements in force so the amendment begins from what the parties actually signed.
+
+    The completed cycle is left exactly as it is. It keeps its signature, its approved terms
+    and its billing configuration, and it keeps the engagement ACTIVE while the amendment is
+    reviewed, so nothing about the live deal changes on the strength of an unapproved
+    document.
+    """
+    current = repo.current_submission(engagement_id)
+    if current is None:
+        raise HTTPException(404, "submission not found")
+    if not can_open_amendment(current.status):
+        raise HTTPException(
+            409,
+            "this engagement already has a review cycle in progress — upload the document to "
+            "that cycle instead",
+        )
+
+    cycle = max((s.cycle for s in repo.list_submissions(engagement_id)), default=1) + 1
+    amendment = repo.put_submission(
+        Submission(
+            engagement_id=engagement_id,
+            submission_id=new_id(),
+            status=SubmissionStatus.DRAFT,
+            cycle=cycle,
+            # Start from the agreements in force. An amendment changes some of them; the rest
+            # carry over, and reconciliation re-derives the slots as documents are classified.
+            document_ids=current.docs(),
+            msa_document_id=current.msa_document_id,
+            mla_document_id=current.mla_document_id,
+            created_at=utcnow(),
+            updated_at=utcnow(),
+        )
+    )
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name,
+            action="amendment_opened", target=cycle_label(cycle),
+        )
+    )
+    return {"submission": amendment, "cycle": cycle, "label": cycle_label(cycle)}
+
+
 @router.post("/engagements/{engagement_id}/documents/{document_id}:extract")
 def extract_document(
     engagement_id: str,
@@ -168,10 +225,9 @@ def extract_document(
     if version.status == "extracted":
         raise HTTPException(409, "this agreement has already been extracted")
 
-    subs = repo.list_submissions(engagement_id)
-    if not subs:
+    sub = repo.current_submission(engagement_id)
+    if sub is None:
         raise HTTPException(404, "submission not found")
-    sub = subs[0]
     status = sub.status.value
     if status == SubmissionStatus.DRAFT.value:
         sub = _apply(repo, principal, member, sub, Action.SUBMIT_FOR_PROCESSING)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
 from ..billing.fleet import effective_fleet_size, fleet_source, is_locked
+from ..lifecycle.amendment import can_open_amendment, cycle_label
 from ..lifecycle.submission_state import Role
 from ..lifecycle.visibility import visible_actions
 from ..store.models import (
@@ -126,6 +127,8 @@ def get_engagement(
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     submissions = repo.list_submissions(engagement_id)
+    sub = repo.current_submission(engagement_id)
+    live = repo.live_submission(engagement_id)
     documents = []
     for d in repo.list_documents(engagement_id):
         fields = repo.list_fields(engagement_id, d.document_id, d.current_version)
@@ -143,7 +146,6 @@ def get_engagement(
             "pct": round(100 * approved / len(elected)) if elected else 100,
         }
         documents.append(item)
-    sub = submissions[0] if submissions else None
     # With scope derived, "required" describes what the agreements in force amount to rather
     # than a checklist to satisfy; nothing is missing until a type is known and absent.
     required = required_doc_types(engagement.scope) if engagement.scope else []
@@ -162,6 +164,31 @@ def get_engagement(
         "missing_doc_types": [t for t in required if t not in present],
         "assigned_vehicle_count": assigned,
         "fleet_size_source": fleet_source(engagement.fleet_size_override),
+        # An engagement can hold several review cycles: the agreements it started on, and one
+        # per amendment since. `submission` above is the cycle in play; these say how it sits
+        # among the others so the interface can show an amendment as a change to a live deal
+        # rather than as the deal itself.
+        "cycles": [
+            {
+                "submission_id": c.submission_id,
+                "cycle": c.cycle,
+                "label": cycle_label(c.cycle),
+                "status": c.status.value,
+                # The agreements this cycle settled on. For the live cycle these are the ones
+                # billing, which is how an amendment can say which document still governs
+                # rather than guessing from standing alone.
+                "document_ids": c.docs(),
+                "created_at": c.created_at,
+            }
+            for c in submissions
+        ],
+        "live_submission_id": live.submission_id if live else None,
+        "is_amendment": bool(sub and sub.cycle > 1),
+        "cycle_label": cycle_label(sub.cycle) if sub else None,
+        # Only a provider may open one, and only on a cycle that has completed.
+        "can_open_amendment": (
+            member.role != Role.CLIENT and can_open_amendment(sub.status if sub else None)
+        ),
     }
 
 
@@ -213,8 +240,7 @@ def get_billing(
     engagement = repo.get_engagement(engagement_id)
     fleet_size = engagement.fleet_size if engagement else 100
     monthly_recurring = engagement.monthly_recurring if engagement else None
-    subs = repo.list_submissions(engagement_id)
-    sub = subs[0] if subs else None
+    sub = repo.billing_submission(engagement_id)
     if sub is None:
         return {"config": None, "status": None, "fleet_size": fleet_size}
     config = None
@@ -345,8 +371,7 @@ def update_billing_settings(
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
-    subs = repo.list_submissions(engagement_id)
-    sub = subs[0] if subs else None
+    sub = repo.billing_submission(engagement_id)
     if sub and is_locked(sub.status.value):
         raise HTTPException(409, "fleet size is locked once billing is active")
     repo.set_fleet_override(engagement_id, body.fleet_size)

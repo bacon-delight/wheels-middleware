@@ -16,7 +16,8 @@ from typing import Any
 from boto3.dynamodb.conditions import Key
 
 from ..config import get_settings
-from ..lifecycle.submission_state import Role
+from ..lifecycle.amendment import cycle_in_force, open_cycle, ordered_cycles
+from ..lifecycle.submission_state import Role, SubmissionStatus
 from . import keys as k
 from .models import (
     AuditEvent,
@@ -420,6 +421,12 @@ class Repository:
         return self._load(r.get("Item"), Submission)
 
     def list_submissions(self, engagement_id: str) -> list[Submission]:
+        """Every review cycle on this engagement, oldest cycle first.
+
+        The sort matters: the item key is ``SUB#{uuid}``, so DynamoDB returns cycles in an
+        order unrelated to when they ran. Callers that want "the cycle in play" must not take
+        the first row of an unordered list — use :meth:`current_submission`.
+        """
         r = self.table.query(
             KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
             & Key("SK").begins_with("SUB#"),
@@ -427,7 +434,24 @@ class Repository:
             ExpressionAttributeNames={"#t": "type"},
             ExpressionAttributeValues={":t": "SUBMISSION"},
         )
-        return [self._load(i, Submission) for i in r.get("Items", [])]
+        return ordered_cycles(self._load(i, Submission) for i in r.get("Items", []))
+
+    def current_submission(self, engagement_id: str) -> Submission | None:
+        """The cycle actions apply to — see :func:`app.lifecycle.amendment.open_cycle`."""
+        return open_cycle(self.list_submissions(engagement_id))
+
+    def live_submission(self, engagement_id: str) -> Submission | None:
+        """The latest cycle that reached ACTIVE, or None before the first one goes live."""
+        live = [
+            s
+            for s in self.list_submissions(engagement_id)
+            if s.status == SubmissionStatus.ACTIVE
+        ]
+        return live[-1] if live else None
+
+    def billing_submission(self, engagement_id: str) -> Submission | None:
+        """The cycle whose terms bill — see :func:`app.lifecycle.amendment.cycle_in_force`."""
+        return cycle_in_force(self.list_submissions(engagement_id))
 
     def update_submission_status(
         self,
@@ -465,8 +489,23 @@ class Repository:
         # The engagement keeps a denormalized copy of this status so lists and the dashboard
         # need no join. Updating it here rather than at each call site is what stops the two
         # drifting apart: the pipeline workers transition submissions too, and they did not.
-        self.set_engagement_status(engagement_id, new_status)
+        #
+        # An amendment is the exception. A live engagement keeps billing on the agreed terms
+        # while the new ones are reviewed, so its status must stay ACTIVE rather than follow
+        # the amendment backwards through underwriting — the finance dashboard, the expiry
+        # windows and the fleet lock all read that status. The amendment takes the status over
+        # at the moment it goes live itself.
+        if new_status == SubmissionStatus.ACTIVE.value or not self._has_other_live_cycle(
+            engagement_id, submission_id
+        ):
+            self.set_engagement_status(engagement_id, new_status)
         return self._load(r["Attributes"], Submission)
+
+    def _has_other_live_cycle(self, engagement_id: str, submission_id: str) -> bool:
+        return any(
+            s.submission_id != submission_id and s.status == SubmissionStatus.ACTIVE
+            for s in self.list_submissions(engagement_id)
+        )
 
     # --- Document + version ---
     def put_document(self, d: Document) -> Document:

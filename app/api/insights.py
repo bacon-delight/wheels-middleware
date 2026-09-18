@@ -32,7 +32,7 @@ def negotiation_summary(
     member: Membership = Depends(membership_dep),
     repo: Repository = Depends(get_repo),
 ):
-    subs = repo.list_submissions(engagement_id)
-    if not subs:
+    sub = repo.current_submission(engagement_id)
+    if sub is None:
         return {"summary": "", "highlights": [], "thread": []}
-    return build_summary(repo, subs[0], for_client=member.role == Role.CLIENT)
+    return build_summary(repo, sub, for_client=member.role == Role.CLIENT)

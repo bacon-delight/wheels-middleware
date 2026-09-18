@@ -253,10 +253,18 @@ class UserProfile(BaseModel):
 
 
 class Submission(BaseModel):
+    """One review cycle over an engagement's agreements.
+
+    An engagement has one cycle for its original agreements and a further cycle for each
+    amendment afterwards — a renewal, an added lease or service, or a corrected version of a
+    document. Cycles are numbered from 1 and only one may be open at a time; the most recent
+    cycle to reach ACTIVE holds the terms actually in force and billing.
+    """
+
     engagement_id: str
     submission_id: str
     status: SubmissionStatus = SubmissionStatus.DRAFT
-    round: int = 1
+    cycle: int = 1
     # Document slots keyed by doc_type. The two legacy scalar fields are still written so
     # rows created before this change (and any reader that has not been updated) keep working;
     # `docs()` is the accessor everything should use.
@@ -309,6 +317,9 @@ class Document(BaseModel):
     classified_type: str | None = None  # what the text said, before any manual override
     classification_confidence: float | None = None
     type_overridden: bool = False  # a person corrected the type; do not re-classify
+    # Which review cycle this agreement arrived in, so an amendment can show what it added
+    # without re-reading the documents that were already in force.
+    cycle: int = 1
     created_at: str
 
 
