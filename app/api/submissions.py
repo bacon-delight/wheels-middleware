@@ -249,6 +249,7 @@ def discard_amendment(
 def extract_document(
     engagement_id: str,
     document_id: str,
+    force: bool = False,
     member: Membership = Depends(require_provider),
     principal: Principal = Depends(get_principal),
     repo: Repository = Depends(get_repo),
@@ -269,8 +270,15 @@ def extract_document(
     version = repo.get_document_version(engagement_id, document_id, doc.current_version)
     if version is None:
         raise HTTPException(409, "this document has no uploaded file yet")
-    if version.status == "extracted":
-        raise HTTPException(409, "this agreement has already been extracted")
+    if version.status == "extracted" and not force:
+        # `force` re-reads a document that has already been read. Needed whenever extraction
+        # itself improves: without it the only way to benefit is to re-upload the file, which
+        # would mint a new version and detach the analyst's work from the agreement it belongs
+        # to. Re-extraction is non-destructive by construction — unchanged terms keep their
+        # approvals — so this is safe to offer.
+        raise HTTPException(
+            409, "this agreement has already been extracted; pass force=true to re-read it"
+        )
 
     sub = repo.current_submission(engagement_id)
     if sub is None:

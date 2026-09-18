@@ -19,8 +19,23 @@ UNKNOWN = "UNKNOWN"
 MLA = "MLA"
 MSA = "MSA"
 
-_LEASE = re.compile(r"master\s+lease\s+agreement", re.I)
-_SERVICE = re.compile(r"master\s+(service|services)\s+agreement", re.I)
+_LEASE = re.compile(
+    r"master\s+(?:motor\s+vehicle\s+)?lease\s+agreement|"
+    r"master\s+vehicle\s+lease",
+    re.I,
+)
+# A service agreement is not always called one. Wheels signs statements of work, professional
+# services agreements and master fleet management services agreements, and the Walmart
+# statement of work classified as UNKNOWN on the narrower pattern — which meant it never
+# entered a submission slot, never reached billing and never offered a Review link, all
+# silently.
+_SERVICE = re.compile(
+    r"master\s+(?:fleet\s+management\s+)?(?:service|services)\s+agreement|"
+    r"professional\s+services\s+agreement|"
+    r"statement\s+of\s+work|"
+    r"fleet\s+management\s+services\s+agreement",
+    re.I,
+)
 
 # "effective as of January 1, 2024", "dated as of 1 January 2024", "Effective Date: 2024-01-01"
 _MONTHS = (
