@@ -1,50 +1,172 @@
-"""System prompt and user-content builder for contract extraction."""
+"""Prompts for categorised contract extraction.
+
+One document, five calls. A single call cannot hold the output: a hand extraction of the
+Walmart statement of work runs to 158 records, and the previous single-call design capped out
+at 8,000 output tokens and truncated mid-tool-use with no error.
+
+The five calls share one **cacheable prefix** — the tool schema, the system prompt and the whole
+document text, in that order, because that is the order a request renders in. Only the short
+instruction after the cache breakpoint differs, naming which record types that call may return.
+Anything that varies per request must live after the breakpoint or the cache is rebuilt every
+time, which is silent and costs four fifths of the saving.
+"""
 
 from __future__ import annotations
 
 from ..ocr.base import DocumentParse
+from .schema import CALL_RECORD_TYPES, INFO_TYPE_LABELS
 
-SYSTEM_PROMPT = """You are a fleet-contract billing analyst. You read a single Wheels \
-Master Service Agreement (MSA) or Master Lease Agreement (MLA) and extract every \
-billing-relevant term into the provided tool, exactly matching its schema.
+SYSTEM_PROMPT = """You are a fleet-contract analyst. You read one Wheels contract — a master \
+service agreement, a master lease agreement, a statement of work, a professional services \
+agreement, or an amendment — and record what it says into the provided tool.
 
-Rules:
-- Cover ALL 13 service lines. If a service is not elected in this contract, still emit it \
-with elected=false and no fee_items. Getting elections right matters as much as the fees: \
-billing a non-elected service, or missing an elected one, is a real financial error.
-- Choose the correct fee_type: flat, per_unit, per_transaction, percentage, cost_plus, \
-tiered, minimum, or conditional. Use tier_bands for volume tiers (set marginal=true when \
-each band's rate applies only within that band). Use conditions for waivers (e.g. an intake \
-fee waived when a vehicle is telematics-enrolled), surcharges, thresholds, and rebate shares. \
-When a condition has numeric parameters, ALSO fill the structured fields (share_pct, \
-threshold_amount), not just the description.
-- Some contracts charge ONE bundled fee that covers several services at once (often a \
-volume-tiered 'Bundled Management Fee' per vehicle covering, say, maintenance + insurance \
-admin + mileage). Record it in `bundled_fees` with its tier_bands and `covers_services` \
-listing the bundled service lines. Do NOT force it into a single service line and do NOT set \
-the covered services to $0 and drop the tiers. Still mark each covered service elected=true \
-with a note that it is billed via the bundled management fee.
-- For every value, include at least one citation with a VERBATIM `quote` copied character-for-\
-character from the page it appears on, plus the 1-based `page` number and a `section_label` \
-(e.g. "Exhibit B", "Schedule B", "§4.2"). Do not paraphrase quotes. Do not output bbox or \
-char_span; those are computed downstream from your quote.
-- MLA contracts: fill lease_terms (floating vs fixed rate, per-vehicle-class depreciation, \
-admin fee, early-termination formula, TRAC surplus split, billing frequency).
-- Never invent numbers. If a value is genuinely absent or ambiguous, omit it and lower the \
-`confidence` for that service line (0.0-1.0). Reserve confidence >= 0.9 for values you copied \
-directly from an explicit fee table.
+You extract into four categories:
+- PRICING: every priced line, and every program the contract names even when it prices nothing \
+under it.
+- SLA: service level standards, and the fee credits owed when they are missed.
+- REPORTING: reports the vendor owes the client.
+- MISC: definitions, online tools, who is responsible for what, signatures, and any other \
+section worth keeping.
+
+Rules that matter:
+
+- COPY, DO NOT PARAPHRASE. `program`, `item`, `frequency` and every other text field take the \
+contract's own words. Program names are matched against a catalog downstream, so \
+"Fuel Management Program" must not become "Fuel Program" or "fuel management".
+
+- A PROGRAM WITH NO PRICED ITEM IS STILL A RECORD. When a contract names a program but charges \
+nothing separately for it, emit a pricing item with the program and no `item`. That is how we \
+know the client is enrolled. Never invent an item name to fill the gap.
+
+- FREQUENCY COMES FROM THE COLUMN. In a pricing table, the column an amount sits under IS its \
+frequency: a value under "PER VEHICLE PER MONTH ("PVPM") FEES" is `pvpm`; the same value under \
+"OTHER FEES" or "PER OCCURRENCE FEES" is not. Read the column header, and copy the frequency \
+text as the contract writes it ("pvpm", "per card", "per driver per month", "per issuance").
+
+- "Included" IS A PRICE. When a contract says a fee is Included or bundled at no charge, set \
+`included: true` rather than an amount of 0, unless it literally says $0.00.
+
+- CITE EVERYTHING, BRIEFLY. Every record carries exactly one citation. Its `quote` must be \
+copied CHARACTER-FOR-CHARACTER from the page, but it should be SHORT: the most distinctive \
+five to fifteen words of the sentence, enough to find it and no more. A quote is used to locate \
+the text on the page, not to reproduce it, so quoting a whole clause wastes the response budget \
+and risks the record being cut off entirely. Never paraphrase — a paraphrase finds nothing. \
+Give the 1-based `page` and a `section_label` such as "Schedule 2" or "Section 2(a)". Do not \
+output `bbox`, `char_span`, `program_id`, `item_id` or `catalog_match`; those are computed \
+server-side.
+
+- BE CONCISE IN EVERY FIELD. Copy names and amounts exactly, but do not pad descriptions. One \
+record that is complete beats two that are elaborate.
+
+- LEASE MECHANICS ARE PRICING. Per-class depreciation rates, lease administrative fees and the \
+lease rate formula are pricing items under the lease program, with the vehicle class in \
+`sub_category` and the rate in `rate_pct` / `rate_index` / `spread_bps`. Early termination \
+formulas and TRAC surplus splits are `information_section` records.
+
+- `records` IS A JSON ARRAY, not a string containing one. Emit it as a real array of objects. \
+Escape any quotation mark that appears inside a value.
+
+- NEVER INVENT A NUMBER. If a value is absent or ambiguous, leave it out and lower that \
+record's `confidence`. Reserve confidence >= 0.9 for values copied directly from an explicit \
+table. Extraction that is confidently wrong is worse than extraction that is honestly unsure.
 """
 
 
-def build_user_content(parse: DocumentParse, doc_type_hint: str | None = None) -> str:
-    header = "Extract billing terms from this contract.\n"
-    if doc_type_hint:
-        header += f"Document type hint: {doc_type_hint}.\n"
-    header += (
-        "The text below is delimited by page markers; cite the page number shown in the "
-        "marker where each value appears.\n\n"
-    )
-    parts = [header]
+def _table_block(page_number: int, index: int, rows: list[list[str]]) -> str:
+    """Render one detected table.
+
+    Empty cells are preserved as empty columns on purpose. In a pricing schedule the column an
+    amount lands in is what distinguishes a recurring per-vehicle fee from a one-off charge, so
+    collapsing the blanks would destroy the single most useful thing a table tells us.
+    """
+    lines = [f"----- PAGE {page_number} TABLE {index} ({len(rows)} rows) -----"]
+    for row in rows:
+        cells = [(c or "").replace("\n", " ").strip() for c in row]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
+def build_document_prefix(parse: DocumentParse) -> str:
+    """The cacheable half: the whole document, identical for all five calls.
+
+    Nothing request-specific belongs here. A document-type hint, a category name or a timestamp
+    in this string would invalidate the cache on every call while looking entirely harmless.
+    """
+    parts = [
+        "The contract follows, delimited by page markers. Cite the page number shown in the "
+        "marker where each value appears. Where a page has detected tables, they are repeated "
+        "after the page text in a pipe-delimited form; empty columns are significant.\n"
+    ]
     for page in parse.pages:
-        parts.append(f"===== PAGE {page.page_number} =====\n{page.text}\n")
-    return "\n".join(parts)
+        parts.append(f"===== PAGE {page.page_number} =====\n{page.text}")
+        for i, table in enumerate(getattr(page, "tables", []) or [], start=1):
+            parts.append(_table_block(page.page_number, i, table.rows))
+    return "\n\n".join(parts)
+
+
+def _type_list(call: str) -> str:
+    return ", ".join(
+        f"`{t}` ({INFO_TYPE_LABELS.get(t, t)})" for t in CALL_RECORD_TYPES[call]
+    )
+
+
+_CALL_FOCUS: dict[str, str] = {
+    "pricing": (
+        "Work through every pricing schedule, fee table, amendment and priced clause in the "
+        "document. Emit one record per priced line, splitting a fee that differs by vehicle "
+        "class into one record per class with the class in `sub_category`. Then go back through "
+        "the document for programs that are named but priced nowhere, and emit a record for "
+        "each with the program name and no `item`.\n\n"
+        "Also fill `doc_meta` on this call only: the document type, the client's name, the "
+        "effective date if the document states one, payment terms, and the billing frequency."
+    ),
+    "sla": (
+        "Emit one record per service level standard, and one per fee credit or remedy owed when "
+        "a standard is missed. A remedy record has a `category` and a `calculation` but no "
+        "`service_level_standard`, and that is correct — do not invent a standard for it."
+    ),
+    "reporting": (
+        "Emit one record per report the vendor owes. `applicable_programs` is a list: a report "
+        "that serves two programs names both."
+    ),
+    "definitions": (
+        "Emit one record per term the contract formally defines — every phrase introduced in "
+        "quotation marks followed by 'means', and every term the document says has the meaning "
+        "given elsewhere. Contracts define dozens of these; work through the document from "
+        "start to finish and do not stop early. Copy the definition text as written."
+    ),
+    "misc_reference": (
+        "Emit every online tool or platform the contract describes, every signature block, and "
+        "any section that states a fact about the agreement without imposing a duty.\n\n"
+        "A signature record is an execution block naming a person who signed: a company, a "
+        "name and a title. The same block reproduced in a page footer or a document-tracking "
+        "stamp is not a separate signature — emit each distinct signatory once."
+    ),
+    "misc_operational": (
+        "Emit every obligation the contract places on either party, naming the task, who owes "
+        "it, and when. Use `uncategorised` for a section worth keeping that is none of the "
+        "above — payment terms, insurance requirements, auditability, penalties."
+    ),
+}
+
+
+def build_call_instruction(call: str, doc_type_hint: str | None = None) -> str:
+    """The varying half, sent after the cache breakpoint.
+
+    The document-type hint lives here rather than in the prefix. It used to sit in the header
+    above the document, where it would have silently rebuilt the cache on every request.
+    """
+    if call not in CALL_RECORD_TYPES:
+        raise ValueError(f"unknown extraction call: {call!r}")
+    lines = [
+        f"Extract ONLY these record types from the contract above: {_type_list(call)}.",
+        "Emit nothing of any other type; the other types are covered by separate passes.",
+        "",
+        _CALL_FOCUS[call],
+        "",
+        "Be exhaustive. It is far worse to miss a record than to include an uncertain one with "
+        "a low confidence.",
+    ]
+    if doc_type_hint:
+        lines.append(f"\nThe document type is believed to be: {doc_type_hint}.")
+    return "\n".join(lines)

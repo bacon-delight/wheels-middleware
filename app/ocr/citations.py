@@ -84,10 +84,29 @@ def resolve_on_page(page: PageParse, quote: str) -> ResolvedCitation | None:
     )
 
 
-def resolve(
-    doc: DocumentParse, quote: str, page_hint: int | None = None
-) -> ResolvedCitation | None:
-    """Locate `quote` in the document, preferring the hinted page if given."""
+# A fragment shorter than this is too generic to trust as evidence: "the Vendor will" would
+# match a hundred places on a page and highlight the wrong one.
+_MIN_FRAGMENT_WORDS = 4
+
+
+def _fragments(quote: str) -> list[str]:
+    """Progressively shorter leading and trailing runs of the quote.
+
+    Needed because a quote does not always exist as one contiguous run of page text. A model
+    reading a pricing table quotes the row — "Driver Passport Issuance Fee (Replacement) $15.00
+    per issuance" — but on the page the label and the amount sit in different columns with other
+    text between them. The label alone is still perfectly good evidence, and pointing at it beats
+    pointing at nothing.
+    """
+    words = quote.split()
+    out: list[str] = []
+    for n in range(len(words) - 1, _MIN_FRAGMENT_WORDS - 1, -1):
+        out.append(" ".join(words[:n]))  # drop from the end
+        out.append(" ".join(words[-n:]))  # drop from the start
+    return out
+
+
+def _scan(doc: DocumentParse, quote: str, page_hint: int | None) -> ResolvedCitation | None:
     if page_hint is not None:
         for page in doc.pages:
             if page.page_number == page_hint:
@@ -101,4 +120,32 @@ def resolve(
         hit = resolve_on_page(page, quote)
         if hit:
             return hit
+    return None
+
+
+def resolve(
+    doc: DocumentParse, quote: str, page_hint: int | None = None
+) -> ResolvedCitation | None:
+    """Locate `quote` in the document, preferring the hinted page if given.
+
+    An exact match is tried first and scores 1.0. Failing that, the longest fragment of the
+    quote that does match is used, scored by how much of the quote it covers, so a partial
+    location is distinguishable from a whole one downstream.
+    """
+    hit = _scan(doc, quote, page_hint)
+    if hit is not None:
+        return hit
+
+    full = len(_norm(quote))
+    if full == 0:
+        return None
+    for fragment in _fragments(quote):
+        hit = _scan(doc, fragment, page_hint)
+        if hit is not None:
+            return ResolvedCitation(
+                page_number=hit.page_number,
+                rects=hit.rects,
+                matched_text=hit.matched_text,
+                score=round(len(_norm(fragment)) / full, 3),
+            )
     return None

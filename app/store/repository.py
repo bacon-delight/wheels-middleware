@@ -15,6 +15,7 @@ from typing import Any
 
 from boto3.dynamodb.conditions import Key
 
+from ..catalog.models import ServiceItem, ServiceProgram, UnmatchedName
 from ..config import get_settings
 from ..lifecycle.amendment import cycle_in_force, open_cycle, ordered_cycles
 from ..lifecycle.submission_state import Role, SubmissionStatus
@@ -25,11 +26,13 @@ from .models import (
     Document,
     DocumentVersion,
     Engagement,
+    EngagementService,
     Membership,
     Payment,
     ProviderUser,
     ReviewField,
     Submission,
+    TermRow,
     UserProfile,
     Vehicle,
     VehicleAssignment,
@@ -608,6 +611,260 @@ class Repository:
         )
         return self._load(r.get("Item"), DocumentVersion)
 
+    # --- Extracted terms ---
+    def put_term(self, t: TermRow) -> TermRow:
+        self._put(
+            self._model_item(
+                t,
+                k.eng_pk(t.engagement_id),
+                k.term_sk(t.document_id, t.version, t.category, t.record_id),
+                "TERM",
+                GSI1PK=k.doc_version_gsi1pk(t.document_id, t.version),
+                GSI1SK=k.review_gsi1sk(t.needs_review, t.confidence),
+            )
+        )
+        return t
+
+    def put_terms(self, terms: list[TermRow]) -> int:
+        """Batch-write a document's terms. A contract yields hundreds, not a dozen."""
+        with self.table.batch_writer() as batch:
+            for t in terms:
+                batch.put_item(
+                    Item=_to_decimal(
+                        self._model_item(
+                            t,
+                            k.eng_pk(t.engagement_id),
+                            k.term_sk(t.document_id, t.version, t.category, t.record_id),
+                            "TERM",
+                            GSI1PK=k.doc_version_gsi1pk(t.document_id, t.version),
+                            GSI1SK=k.review_gsi1sk(t.needs_review, t.confidence),
+                        )
+                    )
+                )
+        return len(terms)
+
+    def list_terms(
+        self,
+        engagement_id: str,
+        document_id: str,
+        version: int,
+        category: str | None = None,
+    ) -> list[TermRow]:
+        """Every term for a document version, optionally one category.
+
+        Paginated, unlike the review-field query it replaces: a single contract now produces
+        several hundred rows and would otherwise be silently cut off at DynamoDB's 1 MB limit.
+        """
+        prefix = k.term_category_prefix(document_id, version, category)
+        out: list[TermRow] = []
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": Key("PK").eq(k.eng_pk(engagement_id))
+            & Key("SK").begins_with(prefix),
+        }
+        while True:
+            r = self.table.query(**kwargs)
+            out.extend(self._load(i, TermRow) for i in r.get("Items", []))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                return out
+            kwargs["ExclusiveStartKey"] = lek
+
+    def get_term(
+        self, engagement_id: str, document_id: str, version: int, category: str, record_id: str
+    ) -> TermRow | None:
+        r = self.table.get_item(
+            Key={
+                "PK": k.eng_pk(engagement_id),
+                "SK": k.term_sk(document_id, version, category, record_id),
+            }
+        )
+        return self._load(r.get("Item"), TermRow)
+
+    def update_term(
+        self,
+        engagement_id: str,
+        document_id: str,
+        version: int,
+        category: str,
+        record_id: str,
+        updates: dict[str, Any],
+    ) -> None:
+        names = {f"#f{i}": key for i, key in enumerate(updates)}
+        values = {f":v{i}": val for i, val in enumerate(updates.values())}
+        expr = ", ".join(f"#f{i} = :v{i}" for i in range(len(updates)))
+        self.table.update_item(
+            Key={
+                "PK": k.eng_pk(engagement_id),
+                "SK": k.term_sk(document_id, version, category, record_id),
+            },
+            UpdateExpression=f"SET {expr}",
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=_to_decimal(values),
+        )
+
+    def term_counts(self, engagement_id: str, document_id: str, version: int) -> dict[str, Any]:
+        """Counts only, for the hot engagement page and the review tab strip.
+
+        The engagement detail endpoint must not load several hundred term bodies per document
+        just to render a number.
+        """
+        counts: dict[str, int] = {}
+        needs = approved = total = 0
+        for t in self.list_terms(engagement_id, document_id, version):
+            if t.superseded:
+                continue
+            counts[t.category] = counts.get(t.category, 0) + 1
+            total += 1
+            needs += 1 if t.needs_review else 0
+            approved += 1 if t.approved else 0
+        return {
+            "by_category": counts,
+            "total": total,
+            "needs_review": needs,
+            "approved": approved,
+            "pricing_total": counts.get("pricing", 0),
+        }
+
+    # --- Service catalog ---
+    def put_program(self, p: ServiceProgram) -> ServiceProgram:
+        self._put(
+            self._model_item(p, k.org_catalog_pk(), k.program_sk(p.program_id), "SVC_PROGRAM")
+        )
+        return p
+
+    def put_catalog_item(self, i: ServiceItem) -> ServiceItem:
+        self._put(
+            self._model_item(
+                i,
+                k.org_catalog_pk(),
+                k.catalog_item_sk(i.program_id, i.item_id),
+                "SVC_ITEM",
+            )
+        )
+        return i
+
+    def load_catalog(self) -> tuple[list[ServiceProgram], list[ServiceItem]]:
+        """The whole catalog in one query. Items sort directly beneath their program."""
+        programs: list[ServiceProgram] = []
+        items: list[ServiceItem] = []
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": Key("PK").eq(k.org_catalog_pk())
+            & Key("SK").begins_with("PROG#"),
+        }
+        while True:
+            r = self.table.query(**kwargs)
+            for item in r.get("Items", []):
+                if item.get("type") == "SVC_PROGRAM":
+                    programs.append(self._load(item, ServiceProgram))
+                elif item.get("type") == "SVC_ITEM":
+                    items.append(self._load(item, ServiceItem))
+            lek = r.get("LastEvaluatedKey")
+            if not lek:
+                return programs, items
+            kwargs["ExclusiveStartKey"] = lek
+
+    def get_program(self, program_id: str) -> ServiceProgram | None:
+        r = self.table.get_item(
+            Key={"PK": k.org_catalog_pk(), "SK": k.program_sk(program_id)}
+        )
+        return self._load(r.get("Item"), ServiceProgram)
+
+    def record_unmatched(self, name: str, normalised: str, example: dict[str, Any]) -> None:
+        """Queue a program name the catalog does not know, with a few examples.
+
+        Deliberately additive and never promoting: a catalog that grows itself from whatever an
+        extraction invents stops being a denominator worth measuring against.
+        """
+        key = {"PK": k.org_catalog_pk(), "SK": k.unmatched_sk(normalised)}
+        existing = self._load(self.table.get_item(Key=key).get("Item"), UnmatchedName)
+        now = utcnow()
+        if existing is None:
+            self._put(
+                self._model_item(
+                    UnmatchedName(
+                        normalised=normalised, raw=name, count=1,
+                        examples=[example], first_seen=now, last_seen=now,
+                    ),
+                    k.org_catalog_pk(),
+                    k.unmatched_sk(normalised),
+                    "SVC_UNMATCHED",
+                )
+            )
+            return
+        existing.count += 1
+        existing.last_seen = now
+        if example not in existing.examples:
+            existing.examples = (existing.examples + [example])[:5]
+        self._put(
+            self._model_item(
+                existing, k.org_catalog_pk(), k.unmatched_sk(normalised), "SVC_UNMATCHED"
+            )
+        )
+
+    def list_unmatched(self) -> list[UnmatchedName]:
+        r = self.table.query(
+            KeyConditionExpression=Key("PK").eq(k.org_catalog_pk())
+            & Key("SK").begins_with("UNMATCHED#")
+        )
+        rows = [self._load(i, UnmatchedName) for i in r.get("Items", [])]
+        return sorted(rows, key=lambda u: -u.count)
+
+    def delete_unmatched(self, normalised: str) -> None:
+        self.table.delete_item(
+            Key={"PK": k.org_catalog_pk(), "SK": k.unmatched_sk(normalised)}
+        )
+
+    # --- Engagement service coverage ---
+    def put_coverage(self, rows: list[EngagementService]) -> int:
+        with self.table.batch_writer() as batch:
+            for c in rows:
+                batch.put_item(
+                    Item=_to_decimal(
+                        self._model_item(
+                            c,
+                            k.eng_pk(c.engagement_id),
+                            k.coverage_sk(c.program_id, c.document_id, c.version),
+                            "COVERAGE",
+                            GSI2PK=k.service_gsi2pk(c.program_id),
+                            GSI2SK=k.eng_pk(c.engagement_id),
+                        )
+                    )
+                )
+        return len(rows)
+
+    def list_coverage(self, engagement_id: str) -> list[EngagementService]:
+        r = self.table.query(
+            KeyConditionExpression=Key("PK").eq(k.eng_pk(engagement_id))
+            & Key("SK").begins_with(k.coverage_prefix())
+        )
+        return [self._load(i, EngagementService) for i in r.get("Items", [])]
+
+    def clear_coverage(self, engagement_id: str, document_id: str, version: int) -> int:
+        """Withdraw what one document version contributed, before writing it afresh."""
+        rows = [
+            c
+            for c in self.list_coverage(engagement_id)
+            if c.document_id == document_id and c.version == version
+        ]
+        with self.table.batch_writer() as batch:
+            for c in rows:
+                batch.delete_item(
+                    Key={
+                        "PK": k.eng_pk(engagement_id),
+                        "SK": k.coverage_sk(c.program_id, c.document_id, c.version),
+                    }
+                )
+        return len(rows)
+
+    def engagements_using(self, program_id: str) -> list[str]:
+        """Which engagements avail a program — one GSI2 query, never a scan."""
+        r = self.table.query(
+            IndexName="GSI2",
+            KeyConditionExpression=Key("GSI2PK").eq(k.service_gsi2pk(program_id)),
+        )
+        seen = {i["engagement_id"] for i in r.get("Items", []) if "engagement_id" in i}
+        return sorted(seen)
+
     # --- Review fields ---
     def put_field(self, f: ReviewField) -> ReviewField:
         self._put(
@@ -626,9 +883,13 @@ class Repository:
         self, engagement_id: str, document_id: str, version: int
     ) -> list[ReviewField]:
         """Fields for a doc-version, needs-review first then ascending confidence (GSI1)."""
+        # Terms share this GSI1 partition, so the type filter is what keeps the two apart.
         r = self.table.query(
             IndexName="GSI1",
             KeyConditionExpression=Key("GSI1PK").eq(k.doc_version_gsi1pk(document_id, version)),
+            FilterExpression="#t = :t",
+            ExpressionAttributeNames={"#t": "type"},
+            ExpressionAttributeValues={":t": "FIELD"},
             ScanIndexForward=True,
         )
         return [self._load(i, ReviewField) for i in r.get("Items", [])]

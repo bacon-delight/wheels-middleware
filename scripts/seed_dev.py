@@ -23,6 +23,8 @@ import boto3  # noqa: E402
 
 from app.billing.config_builder import build_billing_config, ensure_schedule  # noqa: E402
 from app.billing.estimate import compute_monthly_recurring  # noqa: E402
+from app.catalog.store import load_snapshot, seed_from_file  # noqa: E402
+from app.extraction.materialize import build_rows, coverage_rows  # noqa: E402
 from app.lifecycle.submission_state import Role, SubmissionStatus  # noqa: E402
 from app.objects import billing_config_key  # noqa: E402
 from app.store.models import (  # noqa: E402
@@ -35,7 +37,6 @@ from app.store.models import (  # noqa: E402
     LeaseStructure,
     Membership,
     Powertrain,
-    ReviewField,
     Submission,
     Vehicle,
     VehicleOwnership,
@@ -85,13 +86,28 @@ ENGAGEMENTS = [
     (11, "Plant logistics + forklifts", "LEASE_AND_SERVICE", "DRAFT", 0, None, 36, None),
 ]
 
-# Service lines with plausible per-vehicle-per-month rates.
-SERVICE_RATES = {
-    "Maintenance": 18.50, "Fuel": 6.25, "Telematics": 4.00, "Toll": 2.75,
-    "Violation": 1.50, "Insurance": 22.00, "Collision": 3.25, "Rentals": 5.50,
-    "RegRenewals": 3.75, "InitialTitleReg": 2.00, "MileageLogging": 1.25,
-    "Remarketing": 4.50, "DriverBackgroundSafety": 2.25,
+# Synthetic terms are built against the real catalog rather than a private list, so seeded
+# engagements resolve, cover and bill exactly the way extracted ones do. Rates are plausible
+# per-vehicle-per-month figures; items are named the way the contracts name them.
+PROGRAM_RATES: dict[str, tuple[str, float, str]] = {
+    "maintenance-assistance": ("Monthly Program Fee", 18.50, "pvpm"),
+    "fuel-management": ("Monthly Program Fee", 6.25, "pvpm"),
+    "connected-vehicle": ("Telematics Subscription", 4.00, "pvpm"),
+    "toll-management": ("Toll Management Fee", 2.75, "pvpm"),
+    "violation-management": ("Violation Administration Fee", 1.50, "pvpm"),
+    "insurance-card": ("Insurance Card Program Fee", 3.00, "per card"),
+    "collision-management": ("Claim Loss Notice Fee", 15.00, "per notice"),
+    "rental": ("Rental Administration Fee", 5.50, "per occurrence"),
+    "registration-express": ("Registration Express Fee", 3.75, "pvpm"),
+    "mileage-certification-logging": ("Mileage Certification Fee", 1.25, "per driver per month"),
+    "remarketing": ("Remarketing Fee", 4.50, "per vehicle"),
+    "safety-first-online-training": ("Online Safety Training", 2.00, "per driver per module"),
+    "vehicle-lease": ("Lease Administrative Fee", 12.50, "pvpm"),
+    "electric-vehicle": ("Home Charger Program Fee", 9.00, "pvpm"),
 }
+
+# Which programs belong to a lease agreement rather than a service one.
+LEASE_PROGRAMS = ["vehicle-lease", "registration-express", "remarketing"]
 
 # Fleet mix: roughly what a mixed corporate fleet looks like.
 FLEET_MIX = [
@@ -153,24 +169,58 @@ def build_vehicles(repo: Repository, rng: random.Random, apply: bool) -> list[Ve
     return made
 
 
-def build_fields(repo: Repository, eid: str, did: str, rng: random.Random,
-                 services: list[str], apply: bool) -> None:
-    for svc in services:
-        rate = SERVICE_RATES[svc]
-        confidence = round(rng.uniform(0.82, 0.99), 2)
-        f = ReviewField(
-            engagement_id=eid, document_id=did, version=1, field_id=new_id(), service=svc,
-            elected=True, confidence=confidence, needs_review=confidence < 0.88, approved=True,
-            fee_items=[{"fee_type": "FLAT", "amount": rate,
-                        "unit_basis": "per_vehicle_per_month",
-                        "description": f"{svc} administered under the agreement."}],
-            citations=[{
+def build_terms(repo: Repository, eid: str, did: str, rng: random.Random,
+                program_ids: list[str], catalog, apply: bool) -> None:
+    """Seed terms across all four categories, the way an extraction would produce them."""
+    names = {p.program_id: p.name for p in catalog.programs}
+    records: list[dict] = []
+    for program_id in program_ids:
+        item, rate, frequency = PROGRAM_RATES[program_id]
+        program = names.get(program_id, program_id)
+        records.append({
+            "info_type": "pricing_item",
+            "program": program, "item": item, "amount": rate, "frequency": frequency,
+            "contract_section": "Pricing Schedule",
+            "confidence": round(rng.uniform(0.86, 0.99), 2),
+            "citations": [{
                 "page": rng.randrange(3, 12),
-                "section_label": f"§{rng.randrange(2, 9)}.{rng.randrange(1, 6)}",
+                "section_label": f"Schedule {rng.randrange(1, 4)}",
+                "quote": f"{item} {rate}",
             }],
-        )
-        if apply:
-            repo.put_field(f)
+        })
+    # A contract is more than its prices; seeded engagements should look like it.
+    if program_ids:
+        lead = names.get(program_ids[0], program_ids[0])
+        records += [
+            {"info_type": "sla_item", "category": "Driver Contact Center (Answer)",
+             "service_level_standard": "Average speed to answer under one minute.",
+             "frequency": "Monthly", "minimum_threshold": "N/A",
+             "contract_section": "Service Level Agreement", "confidence": 0.94,
+             "citations": [{"page": 4, "quote": "average speed to answer"}]},
+            {"info_type": "reporting_requirement", "report_name": "Downtime Report",
+             "report_specifications": "Time between request and completion, per vehicle.",
+             "frequency": "Monthly", "applicable_programs": [lead],
+             "contract_section": "Report Requirements", "confidence": 0.92,
+             "citations": [{"page": 6, "quote": "downtime report"}]},
+            {"info_type": "definition", "term": "Vehicle",
+             "definition": "Each vehicle leased or serviced under this agreement.",
+             "contract_section": "Definitions", "confidence": 0.96,
+             "citations": [{"page": 2, "quote": "means each vehicle"}]},
+            {"info_type": "responsibility", "topic": "Invoicing",
+             "task": "Vendor issues a consolidated monthly invoice.",
+             "responsible_party": "Vendor", "party": "vendor", "frequency": "Monthly",
+             "contract_section": "Fees, Payment and Invoicing", "confidence": 0.9,
+             "citations": [{"page": 8, "quote": "consolidated monthly invoice"}]},
+        ]
+
+    rows, _ = build_rows(eid, did, 1, records, catalog=catalog, now=utcnow())
+    for row in rows:
+        row.approved = True
+        row.needs_review = False
+    if apply:
+        repo.put_terms(rows)
+        repo.clear_coverage(eid, did, 1)
+        repo.put_coverage(coverage_rows(eid, did, 1, rows, catalog, now=utcnow()))
 
 
 def main() -> int:
@@ -192,6 +242,13 @@ def main() -> int:
     s3 = S3Store(bucket=args.bucket)
     today = datetime.date.today()
     print(f"[{verb}] region={args.region}\n")
+
+    # Terms are built against the real catalog, so the seeded engagements resolve and cover
+    # exactly the way extracted ones do. Loading it first is what makes that possible.
+    if apply:
+        programs, items = seed_from_file(repo)
+        print(f"  catalog: {programs} programs, {items} items")
+    catalog = load_snapshot(repo, fresh=True)
 
     # --- customers ---
     cust_ids = []
@@ -307,13 +364,14 @@ def main() -> int:
 
         # --- terms: the MSA carries the service lines, the MLA the lease-side ones ---
         if status != "DRAFT":
-            svc_all = list(SERVICE_RATES)
-            rng.shuffle(svc_all)
-            lease_side = ["RegRenewals", "InitialTitleReg", "Remarketing", "MileageLogging"]
+            service_programs = [p for p in PROGRAM_RATES if p not in LEASE_PROGRAMS]
+            rng.shuffle(service_programs)
             for doc_type, did in doc_ids.items():
-                picked = (lease_side if doc_type == "MLA"
-                          else [s for s in svc_all if s not in lease_side][:7])
-                build_fields(repo, eid, did, rng, picked, apply)
+                picked = (
+                    LEASE_PROGRAMS if doc_type == "MLA"
+                    else service_programs[: rng.randrange(4, 8)]
+                )
+                build_terms(repo, eid, did, rng, picked, catalog, apply)
 
         # --- vehicles onto the engagement ---
         assigned = 0

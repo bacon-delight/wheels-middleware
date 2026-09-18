@@ -1,21 +1,27 @@
-"""Structured billing-term extraction."""
+"""Structured contract-term extraction."""
 
 from .schema import (
+    SCHEMA_VERSION,
+    Category,
     ContractExtraction,
-    DocType,
-    FeeItem,
+    DocumentMeta,
     FeeType,
-    ServiceLine,
-    ServiceLineTerms,
+    InfoType,
+    PricingItem,
+    TermRecord,
     UnitBasis,
+    parse_records,
 )
 
 __all__ = [
+    "SCHEMA_VERSION",
+    "Category",
     "ContractExtraction",
-    "DocType",
-    "FeeItem",
+    "DocumentMeta",
     "FeeType",
-    "ServiceLine",
-    "ServiceLineTerms",
+    "InfoType",
+    "PricingItem",
+    "TermRecord",
     "UnitBasis",
+    "parse_records",
 ]

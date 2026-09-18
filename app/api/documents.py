@@ -5,10 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
+from ..catalog.resolve import resolve as resolve_service
+from ..catalog.store import load_snapshot
+from ..extraction.materialize import coverage_rows
+from ..extraction.schema import RECORD_MODELS
 from ..lifecycle.submission_state import Role
 from ..objects import page_key, source_pdf_key
 from ..store.models import AuditEvent, Document, DocumentVersion, Membership
@@ -222,6 +226,176 @@ def get_pages(
         for p in range(1, (v.page_count or 0) + 1)
     ]
     return {"page_count": v.page_count or 0, "pages": pages}
+
+
+class TermPatchIn(BaseModel):
+    approved: bool | None = None
+    record: dict[str, Any] | None = None
+    notes: str | None = None
+
+
+@router.get("/engagements/{engagement_id}/documents/{document_id}/versions/{version}/terms")
+def get_terms(
+    engagement_id: str,
+    document_id: str,
+    version: int,
+    category: str | None = None,
+    member: Membership = Depends(membership_dep),
+    repo: Repository = Depends(get_repo),
+):
+    """Extracted terms for one document version, optionally one category.
+
+    The counts come back with the rows so the review screen's tab strip renders from one
+    request rather than five.
+    """
+    terms = [t for t in repo.list_terms(engagement_id, document_id, version) if not t.superseded]
+    if member.role == Role.CLIENT:
+        # Customers see settled terms only, and never the un-triaged backlog: a list of
+        # sections Wheels has not finished reading is internal.
+        terms = [t for t in terms if t.approved and t.info_type != "uncategorised"]
+    counts: dict[str, int] = {}
+    for t in terms:
+        counts[t.category] = counts.get(t.category, 0) + 1
+    shown = [t for t in terms if category is None or t.category == category]
+    # Needs-review first, then least confident: the analyst's queue, for free.
+    shown.sort(key=lambda t: (not t.needs_review, t.confidence))
+    return {
+        "terms": shown,
+        "counts_by_category": counts,
+        "needs_review_count": sum(1 for t in terms if t.needs_review),
+        "approved_count": sum(1 for t in terms if t.approved),
+        "total": len(terms),
+    }
+
+
+@router.patch(
+    "/engagements/{engagement_id}/documents/{document_id}/versions/{version}"
+    "/terms/{category}/{record_id}"
+)
+def patch_term(
+    engagement_id: str,
+    document_id: str,
+    version: int,
+    category: str,
+    record_id: str,
+    body: TermPatchIn,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Approve or correct one term.
+
+    A correction is re-validated against the model for that record's own type, so a definition
+    cannot acquire an amount and a priced line cannot lose its shape. Editing the program on a
+    pricing term re-runs catalog resolution and rewrites this engagement's coverage, because
+    that correction is the one that changes what the customer is shown to be buying.
+    """
+    term = repo.get_term(engagement_id, document_id, version, category, record_id)
+    if term is None:
+        raise HTTPException(404, "term not found")
+
+    updates: dict[str, Any] = {}
+    action = "term_reviewed"
+
+    if body.record is not None:
+        merged = {**term.record, **body.record}
+        model = RECORD_MODELS.get(term.info_type)
+        if model is None:
+            raise HTTPException(400, f"unknown record type {term.info_type}")
+        try:
+            validated = model.model_validate(merged).model_dump(mode="json")
+        except ValidationError as e:
+            raise HTTPException(400, f"that correction does not fit a {term.info_type}: {e}") from e
+        updates["record"] = validated
+        updates["corrected"] = True
+        updates["title"] = validated.get("item") or validated.get("term") or term.title
+        updates["amount"] = validated.get("amount")
+        updates["frequency"] = validated.get("frequency")
+        action = "term_corrected"
+
+        if term.info_type == "pricing_item":
+            snapshot = load_snapshot(repo)
+            found = resolve_service(snapshot, validated.get("program"), validated.get("item"))
+            updates["program_id"] = found.program_id
+            updates["catalog_item_id"] = found.item_id
+            updates["catalog_match"] = found.kind
+            term.record = validated
+            term.program_id = found.program_id
+            term.catalog_item_id = found.item_id
+
+    if body.notes is not None:
+        updates["notes"] = body.notes
+    if body.approved:
+        updates["approved"] = True
+        updates["needs_review"] = False
+        updates["changed_since_approval"] = False
+        if action == "term_reviewed":
+            action = "term_approved"
+    if not updates:
+        raise HTTPException(400, "no changes provided")
+
+    updates["updated_at"] = utcnow()
+    repo.update_term(engagement_id, document_id, version, category, record_id, updates)
+
+    if term.info_type == "pricing_item" and body.record is not None:
+        _rebuild_coverage(repo, engagement_id, document_id, version)
+
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name, action=action,
+            target=f"{category}/{term.title[:60]}",
+        )
+    )
+    return {"ok": True, "action": action}
+
+
+@router.post(
+    "/engagements/{engagement_id}/documents/{document_id}/versions/{version}/terms:approve"
+)
+def approve_terms(
+    engagement_id: str,
+    document_id: str,
+    version: int,
+    category: str | None = None,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Approve a whole category at once.
+
+    The one-request-per-term loop this replaces was fine at thirteen terms and is three hundred
+    round trips at the volume a real contract produces.
+    """
+    terms = [
+        t
+        for t in repo.list_terms(engagement_id, document_id, version, category)
+        if not t.superseded and not t.approved
+    ]
+    now = utcnow()
+    for t in terms:
+        repo.update_term(
+            engagement_id, document_id, version, t.category, t.record_id,
+            {"approved": True, "needs_review": False, "changed_since_approval": False,
+             "updated_at": now},
+        )
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name, action="terms_approved",
+            target=f"{category or 'all'} ({len(terms)})",
+        )
+    )
+    return {"ok": True, "approved": len(terms)}
+
+
+def _rebuild_coverage(repo: Repository, eid: str, did: str, ver: int) -> None:
+    snapshot = load_snapshot(repo)
+    rows = [t for t in repo.list_terms(eid, did, ver) if not t.superseded]
+    repo.clear_coverage(eid, did, ver)
+    repo.put_coverage(coverage_rows(eid, did, ver, rows, snapshot, now=utcnow()))
 
 
 @router.get("/engagements/{engagement_id}/documents/{document_id}/versions/{version}/fields")

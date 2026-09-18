@@ -15,9 +15,11 @@ from app.auth.deps import get_principal, get_repo, get_s3
 from app.auth.principal import Principal
 from app.lifecycle.submission_state import Role, SubmissionStatus
 from app.main import app
-from app.store.models import Membership, ReviewField
+from app.store.models import Membership
 from app.store.repository import Repository, utcnow
 from app.store.s3 import S3Store
+
+from .pricing_helpers import seed_pricing
 
 REGION = "ap-south-2"
 
@@ -127,22 +129,27 @@ def test_full_lifecycle_and_tenancy(ctx):
     # Seed post-extraction state: submission in underwriting + review fields.
     repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
     repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
-    for svc, elected, conf in [("Rentals", False, 0.99), ("Fuel", True, 0.6), ("Collision", True, 0.95)]:
-        repo.put_field(ReviewField(
-            engagement_id=eid, document_id=did, version=1, field_id=svc.lower(),
-            service=svc, elected=elected, confidence=conf, needs_review=(elected and conf <= 0.8),
-            fee_items=[{"rate_pct": 1.75}], citations=[{"page": 3, "bbox": {"x0": 0.1, "y0": 0.2, "x1": 0.5, "y1": 0.22}}]))
+    for program, item, conf in [
+        ("Rental Program", "Rental Administration Fee", 0.99),
+        ("Fuel Management Program", "Fuel Card Fee", 0.6),
+        ("Collision Management Program", "Claim Loss Notice Fee", 0.95),
+    ]:
+        seed_pricing(repo, eid, did, 1, program=program, item=item, amount=1.75,
+                     frequency="per transaction", approved=False, confidence=conf)
 
-    # Review queue: needs-review first; Rentals present but not elected.
-    fields = client.get(f"/engagements/{eid}/documents/{did}/versions/1/fields").json()
-    assert fields["needs_review_count"] == 1
-    assert fields["fields"][0]["service"] == "Fuel"  # lowest confidence, needs review, sorted first
-    assert any(f["service"] == "Rentals" and f["elected"] is False for f in fields["fields"])
+    # Review queue: needs-review first, so the least confident term leads.
+    terms = client.get(f"/engagements/{eid}/documents/{did}/versions/1/terms").json()
+    assert terms["total"] == 3
+    assert terms["counts_by_category"]["pricing"] == 3
+    assert terms["terms"][0]["record"]["item"] == "Fuel Card Fee"  # lowest confidence
 
-    # Approve the flagged field.
-    r = client.patch(f"/engagements/{eid}/documents/{did}/versions/1/fields/Fuel/fuel",
-                     json={"approved": True})
-    assert r.status_code == 200 and r.json()["action"] == "field_approved"
+    # Approve the flagged term.
+    flagged = terms["terms"][0]
+    r = client.patch(
+        f"/engagements/{eid}/documents/{did}/versions/1/terms/pricing/{flagged['record_id']}",
+        json={"approved": True},
+    )
+    assert r.status_code == 200 and r.json()["action"] == "term_approved"
 
     # Provider submits to client.
     r = client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
@@ -170,10 +177,15 @@ def test_full_lifecycle_and_tenancy(ctx):
     r = client.post(f"/engagements/{eid}/submissions/{sid}:setup-billing")
     assert r.json()["submission"]["status"] == "ACTIVE"
 
-    # Billing config was written with Rentals excluded.
+    # The billing config carries the priced terms, grouped by the program they belong to.
     import json
     cfg = json.loads(S3Store(bucket="wheels-test-docs", client=boto3.client("s3", region_name=REGION)).get_bytes(f"{eid}/{sid}/billing-config.json"))
-    assert "Rentals" in cfg["excluded_services"]
+    assert {line["service"] for line in cfg["service_lines"]} == {
+        "Rental Program", "Fuel Management Program", "Collision Management Program",
+    }
+    # Every priced line records what kind of charge it is, so the ones a per-vehicle estimate
+    # cannot use are visible rather than silently dropped.
+    assert all(item["billing_class"] for item in cfg["pricing_items"])
 
 
 def test_client_cannot_create_engagement(ctx):
@@ -190,10 +202,8 @@ def _drive_to_active(client, repo, state, sid_holder):
                       json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
     repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
     repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
-        elected=True, confidence=0.95, needs_review=False, approved=True,
-        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    seed_pricing(repo, eid, did, 1, program="Fuel Management Program",
+                  item="Fuel Fee", amount=4.0)
     # No vehicles are assigned here, so the derived fleet is 0; the provider sets the billed
     # size explicitly during the approval stages, as they would in the real flow.
     client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 100})
@@ -245,10 +255,8 @@ def test_fleet_set_during_approval_drives_dues(ctx):
                       json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
     repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
     repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
-        elected=True, confidence=0.95, needs_review=False, approved=True,
-        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    seed_pricing(repo, eid, did, 1, program="Fuel Management Program",
+                  item="Fuel Fee", amount=4.0)
     # Fleet is finalized during the approval stage.
     assert client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 250}).status_code == 200
     client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
@@ -269,10 +277,8 @@ def test_change_review_and_summary(ctx):
     eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
     did = client.post(f"/engagements/{eid}/documents:presign",
                       json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=did, version=1, field_id="mnt", service="Maintenance",
-        elected=True, confidence=0.9, needs_review=False,
-        fee_items=[{"amount": 12.5, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    seed_pricing(repo, eid, did, 1, program="Maintenance Assistance Program",
+                 item="Monthly Program Fee", amount=12.5)
     from app.store.models import AuditEvent
     repo.put_audit(AuditEvent(
         engagement_id=eid, event_id="a1", ts=utcnow(), actor_id="c", actor_role="client",
@@ -281,14 +287,12 @@ def test_change_review_and_summary(ctx):
     # what distinguishes a revision of this agreement from a second, superseding one.
     client.post(f"/engagements/{eid}/documents:presign",
                 json={"document_id": did, "filename": "m2.pdf", "submission_id": sid})
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=did, version=2, field_id="mnt2", service="Maintenance",
-        elected=True, confidence=0.9, needs_review=False,
-        fee_items=[{"amount": 11.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    seed_pricing(repo, eid, did, 2, program="Maintenance Assistance Program",
+                 item="Monthly Program Fee", amount=11.0)
 
     cr = client.get(f"/engagements/{eid}/submissions/{sid}/change-review").json()
     assert cr["applicable"] is True
-    assert any(c["service"] == "Maintenance" for c in cr["changes"])
+    assert any("Maintenance" in c["service"] for c in cr["changes"])
     assert cr["items"]  # LLM or deterministic fallback
 
     s = client.get(f"/engagements/{eid}/summary").json()

@@ -125,3 +125,50 @@ def vehicle_gsi2pk(engagement_id: str) -> str:
 
 def vehicle_gsi2sk(vehicle_id: str) -> str:
     return f"VEH#{vehicle_id}"
+
+
+# --- Extracted terms (replacing the per-service-line review fields) ---
+def term_sk(document_id: str, version: int, category: str, record_id: str) -> str:
+    """One category reads with a single begins_with, which is what the review tabs query."""
+    return f"DOC#{document_id}#V#{version:04d}#TRM#{category}#{record_id}"
+
+
+def term_category_prefix(document_id: str, version: int, category: str | None = None) -> str:
+    base = f"DOC#{document_id}#V#{version:04d}#TRM#"
+    return f"{base}{category}#" if category else base
+
+
+# --- Service catalog (main table, one small partition like ORG#CUSTOMERS) ---
+def org_catalog_pk() -> str:
+    return "ORG#CATALOG"
+
+
+def program_sk(program_id: str) -> str:
+    return f"PROG#{program_id}"
+
+
+def catalog_item_sk(program_id: str, item_id: str) -> str:
+    """Items sort directly under their program, so one query returns the catalog in order."""
+    return f"PROG#{program_id}#ITEM#{item_id}"
+
+
+def unmatched_sk(normalised: str) -> str:
+    return f"UNMATCHED#{normalised}"
+
+
+# --- Engagement service coverage ---
+def coverage_sk(program_id: str, document_id: str, version: int) -> str:
+    """Per document version, so removing an agreement withdraws exactly what it contributed."""
+    return f"COV#{program_id}#DOC#{document_id}#V#{version:04d}"
+
+
+def coverage_prefix() -> str:
+    return "COV#"
+
+
+def service_gsi2pk(program_id: str) -> str:
+    """GSI2 answers 'which engagements use this service' without a scan.
+
+    It shares the index with CUST# links; different prefixes, no collision.
+    """
+    return f"SVC#{program_id}"

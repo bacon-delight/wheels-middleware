@@ -331,8 +331,75 @@ class DocumentVersion(BaseModel):
     page_count: int | None = None
     status: str = "uploaded"  # uploaded | parsed | extracted | failed
     uploaded_at: str
+    # What the extraction run cost and whether every call came back whole. Persisted because
+    # tokens, model and price are otherwise invisible, and a prompt cache that quietly stopped
+    # working looks exactly like one that is fine.
+    extraction_run: dict[str, Any] | None = None
     # Full ContractExtraction JSON (small); the review queue is materialized as ReviewFields.
     extraction: dict[str, Any] | None = None
+
+
+class TermRow(BaseModel):
+    """One extracted contract term, of any of the nine record types.
+
+    Replaces the per-service-line review field. The headline fields are denormalised off the
+    record body so a list of three hundred terms renders without parsing each one, while
+    `record` keeps the full typed payload that the analyst actually edits.
+    """
+
+    engagement_id: str
+    document_id: str
+    version: int
+    record_id: str  # deterministic: re-extraction replaces rather than duplicates
+    category: str  # pricing | sla | reporting | misc
+    info_type: str
+
+    # --- denormalised for lists ---
+    title: str
+    subtitle: str | None = None
+    amount: float | None = None
+    frequency: str | None = None
+
+    # --- catalog resolution (pricing rows) ---
+    program_id: str | None = None
+    catalog_item_id: str | None = None
+    catalog_match: str | None = None  # exact | alias | normalised | fuzzy | unmatched
+
+    # --- review state ---
+    confidence: float = 0.0
+    needs_review: bool = False
+    approved: bool = False
+    corrected: bool = False
+    # Set when a re-extraction changed a term the analyst had already approved, so the change
+    # is visible rather than silently un-approving a row they thought was settled.
+    changed_since_approval: bool = False
+    # A term the latest extraction no longer finds. Kept rather than deleted: an agreement's
+    # history is the point of the audit trail.
+    superseded: bool = False
+
+    record: dict[str, Any] = Field(default_factory=dict)
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    notes: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class EngagementService(BaseModel):
+    """A program this engagement's agreements show it avails.
+
+    Written per document version so that removing an agreement withdraws exactly the coverage
+    it contributed, and queried two ways off keys that already exist: by engagement for the
+    coverage tab, by program through GSI2 for the org-wide services page.
+    """
+
+    engagement_id: str
+    program_id: str
+    program_name: str
+    document_id: str
+    version: int
+    item_ids: list[str] = Field(default_factory=list)
+    priced_item_count: int = 0
+    created_at: str | None = None
 
 
 class ReviewField(BaseModel):

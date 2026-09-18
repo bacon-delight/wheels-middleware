@@ -1,0 +1,1739 @@
+{
+  "source": "Walmart Contract Extraction.xlsx",
+  "scores": {
+    "records": true,
+    "citations": false,
+    "note": "Context column is empty in the source workbook; citation coverage is ours to exceed, not to match."
+  },
+  "doc_meta": {
+    "client_name": "Walmart",
+    "document_name": "AE2EBBF8-D107-40A3-AF49-137277D8968D",
+    "effective_date": "2025-04-04"
+  },
+  "records": [
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Driver Passport",
+      "item": "Driver Passport Issuance Fee (Initial)",
+      "sub_category": null,
+      "frequency": "per issuance",
+      "amount": 0,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "(Fee shall not apply if Walmart prints a replacement Driver Passport via the Online Tools)",
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Driver Passport",
+      "item": "Driver Passport Issuance Fee (Replacement)",
+      "sub_category": null,
+      "frequency": "per issuance",
+      "amount": 15,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Fees",
+      "item": "Monthly Program Fee",
+      "sub_category": "PASSENGER/LIGHT-DUTY VEHICLES (under 10,001 GVWR)",
+      "frequency": "pvpm",
+      "amount": 1,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Fees",
+      "item": "Monthly Program Fee",
+      "sub_category": "MEDIUM-DUTY TRUCKS (10,001 – 26,000 GVWR)",
+      "frequency": "pvpm",
+      "amount": 5,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Fees",
+      "item": "Administrative Fee (Non-Network Vendor transactions)",
+      "sub_category": "PASSENGER/LIGHT-DUTY VEHICLES (under 10,001 GVWR)",
+      "frequency": null,
+      "amount": null,
+      "calculation": "Ten-percent (10%) of ISP Charges per transaction (minimum of $5.00 and maximum of $35.00 per transaction)",
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Fees",
+      "item": "Administrative Fee (Non-Network Vendor transactions)",
+      "sub_category": "MEDIUM-DUTY TRUCKS (10,001 – 26,000 GVWR)",
+      "frequency": null,
+      "amount": null,
+      "calculation": "Ten-percent (10%) of ISP Charges per transaction (minimum of $5.00 and maximum of $35.00 per transaction)",
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Rental Vehicle",
+      "item": "Rental Vehicle Violation Administrative Fee",
+      "sub_category": null,
+      "frequency": "per occurrence",
+      "amount": 15,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "Included",
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "DOT",
+      "item": "DOT Inspection Administration Fee",
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": true
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "Included",
+      "citations": [],
+      "program": "Vehicle Maintenance Assistance Program",
+      "product_service": "Vehicle Recall",
+      "item": "Vehicle Recall Program Fee",
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": true
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fuel Management Program",
+      "product_service": "Fuel Card",
+      "item": "New Fuel Card Issuance Fee",
+      "sub_category": null,
+      "frequency": "per card",
+      "amount": 0,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fuel Management Program",
+      "product_service": "Fuel Card",
+      "item": "Replacement Fuel Card Issuance Fee",
+      "sub_category": null,
+      "frequency": "per card",
+      "amount": 15,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fuel Management Program",
+      "product_service": "Fuel Card",
+      "item": "Deactivation of Fuel Cards",
+      "sub_category": null,
+      "frequency": "per card",
+      "amount": 0,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fuel Management Program",
+      "product_service": "Fuel Card",
+      "item": "Notification of suspicious activity",
+      "sub_category": null,
+      "frequency": "per card",
+      "amount": 0,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Collision Management Program",
+      "product_service": "Collision Management",
+      "item": "Claim Loss Notice Fee",
+      "sub_category": null,
+      "frequency": "per notice",
+      "amount": 15,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Collision Management Program",
+      "product_service": "Collision Management",
+      "item": "Independent Appraisal",
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": "Appraiser Fee + $50",
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Collision Management Program",
+      "product_service": "Collision Management",
+      "item": "Administrative Fee for Non-Network Vendor transactions",
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": "Ten percent (10%) of ISP Charges per transaction (minimum of $5.00 and maximum of $35.00 per transaction)",
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Motor Vehicle Record (MVR) Program",
+      "product_service": "MVR",
+      "item": "MVR Fee",
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": "$4.25 per request (including any requests triggered in connection with the MVR Monitoring Program), plus any applicable state registry, or processing fees at cost",
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "(added on to MVR Fee)",
+      "citations": [],
+      "program": "MVR Point Program",
+      "product_service": "MVR Point",
+      "item": "MVR Point Fee",
+      "sub_category": null,
+      "frequency": "per request",
+      "amount": 1,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "(added on to MVR Fee)",
+      "citations": [],
+      "program": "MVR Authorization and Storage Program",
+      "product_service": "MVR Authorizaiton & Storage",
+      "item": "MVR Authorization and Storage Fee",
+      "sub_category": null,
+      "frequency": "per request",
+      "amount": 0,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "MVR Monitoring Program",
+      "product_service": "MVR Monitoring",
+      "item": "MVR Monitoring Fee",
+      "sub_category": null,
+      "frequency": "per driver per month",
+      "amount": 0.95,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": "(plus module costs)",
+      "citations": [],
+      "program": "Safety First Online Training Program",
+      "product_service": "SafetyFirst",
+      "item": "Online Safety Training (Standard Modules)",
+      "sub_category": null,
+      "frequency": "per driver per module",
+      "amount": 2,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Mileage Certification and Logging Program",
+      "product_service": "Mileage Certification & Logging",
+      "item": "Mileage Certification and Logging Fee",
+      "sub_category": null,
+      "frequency": "per driver per month",
+      "amount": 0.5,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Registration Express Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Insurance Card Administration Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fleet Services Program",
+      "product_service": "Driver Assistance Fleet Management Services",
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Fleet Services Program",
+      "product_service": "Fleet Administration Fleet Management Services.",
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Recall Data Service Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Vehicle Purchase Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Connected Vehicle Services Program.",
+      "product_service": "Installation, Activation & De-Activation",
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Connected Vehicle Services Program.",
+      "product_service": "Web Access; Connected Vehicle Fleet Management Services",
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Toll Management Program (Toll Management/TollGuard)",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Violation Management Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Transportation and Driveaway Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "pricing_item",
+      "contract_section": "Pricing Schedule",
+      "notes": null,
+      "citations": [],
+      "program": "Remarketing Program",
+      "product_service": null,
+      "item": null,
+      "sub_category": null,
+      "frequency": null,
+      "amount": null,
+      "calculation": null,
+      "included": false
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Driver Contact Center (Answer)",
+      "service_level_standard": "Average Speed to Frequency* Minimum Threshold Answer ≤ 1 minute.",
+      "frequency": "Monthly",
+      "minimum_threshold": "N/A",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Driver Contact Center (In-Call Hold Time)",
+      "service_level_standard": "Average of ≤ 5 minutes of in-call hold time per call.",
+      "frequency": "Monthly",
+      "minimum_threshold": "N/A",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Responsiveness",
+      "service_level_standard": "≥ 90% of Fleet Management Services Requests meeting the ECD as measured by the CRM System.",
+      "frequency": "Monthly (Fleet Management Services Task Force)",
+      "minimum_threshold": "50 requests by Walmart through the CRM System per calendar month",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Responsiveness (Walmart-specific email inbox requests)",
+      "service_level_standard": "≥ 90% of Fleet Management Services Requests sent to the Walmart email inbox (walmart@wheels.com) are categorized and assigned an ECD completion date within one (1) business day as measured by CRM System.",
+      "frequency": "Monthly (Fleet Management Services Task Force)",
+      "minimum_threshold": "50 requests by Walmart through the Walmart-specific email inbox per calendar month",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Compliance (Registration Renewals)",
+      "service_level_standard": "≥ 98% of registrations renewed prior to expiration (excluding situations which are outside of Vendor’s control)",
+      "frequency": "Monthly (Fleet Management Services Task Force)",
+      "minimum_threshold": "25 registration renewals renewed for Walmart per calendar month)",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Compliance (State Change)",
+      "service_level_standard": "≥ 95% of state changes completed within 30 days of requirements being received.",
+      "frequency": "Monthly (Fleet Management Services Task Force)",
+      "minimum_threshold": "25 state changes requested by Walmart per calendar month",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Property Tax",
+      "service_level_standard": "Vendor will manage property tax payments and filings with ≥ 99% accuracy.",
+      "frequency": "Monthly",
+      "minimum_threshold": "N/A",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Collision (First Notice of Loss and Accident Report)",
+      "service_level_standard": "Average ≤ 2 business hours to send first notice of loss to Walmart’s claims management team from the time Vendor receives the complete accident report and all other information necessary to make the notice.",
+      "frequency": "Monthly",
+      "minimum_threshold": "25 collision claims for Walmart per calendar month",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standards",
+      "category": "Compliance (Initial License & Title)",
+      "service_level_standard": "≥ 95% of initial license and title will be completed within 30 days of requirements being received.",
+      "frequency": "Monthly",
+      "minimum_threshold": "N/A",
+      "calculation": null,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "category": "Initial Fee Credit",
+      "service_level_standard": null,
+      "frequency": null,
+      "minimum_threshold": null,
+      "calculation": 0.25,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "category": "Continuing Fee Credit",
+      "service_level_standard": null,
+      "frequency": null,
+      "minimum_threshold": null,
+      "calculation": 0.5,
+      "example": null
+    },
+    {
+      "info_type": "sla_item",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "contract_sub_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "category": "Service Level Fee Credit",
+      "service_level_standard": null,
+      "frequency": null,
+      "minimum_threshold": null,
+      "calculation": "The Service Level Fee Credit provided to Walmart by Vendor for any Measurement Period shall be equal to: (A) the sum of: (I) the total number of Initial SLS Failures during such Measurement Period, multiplied by the Initial Fee Credit, plus (II) the total number of Continuing SLS Failures during such Measurement Period, multiplied by the Continuing Fee Credit, multiplied by (B) the total number of Vehicles Walmart had enrolled in the Fleet Services Program (identified in Section 2(l) of the Statement of Work for Fleet Management Services and Online Tools) during such Measurement Period.",
+      "example": "For example, in a Measurement Period in which Walmart had nine thousand four hundred (9,400) Vehicles enrolled in the Fleet Services Program during such Measurement Period and there were four (4) Initial SLS Failures and four (4) Continuing SLS Failures, Vendor would owe Walmart a Service Level Fee Credit of $28,200 (being equal to (((4 x $0.25) + (4 x $0.50)) x 9,400). The Service Level Fee Credit for each Measurement Period will be provided to Walmart on the next invoice following the end of such Measurement Period. Notwithstanding the foregoing, the total amount of all Service Level Fee Credits provided by Vendor to Walmart in any Credit Year shall not exceed eighty-thousand ($80,000). (“Maximum Service Level Fee Credit”)."
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Downtime Report",
+      "report_specifications": "Identify, for each Vehicle: \n• Amount of time that passed between the initial maintenance or collision request by Walmart and the completion of maintenance or collision service. \n• Repair status completion timelines.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Maintenance Assistance Program",
+        "Collision Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Rental Report",
+      "report_specifications": "Identify the need for any rental, categorized by the following: \n• Driver, Unit number requiring rental, Walmart cost center, Walmart department number, Walmart department description, Rental vehicle type, Rental vendor, Rental days, Rental rate, Taxes, and Total cost \n• Rental vehicle reasoning (e.g., license and title issues, collision, new driver, or mechanical).",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Maintenance Assistance Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Vehicle Sale Net Proceeds Report",
+      "report_specifications": "Report Report identifying detailed fees associated with the sale of each Vehicle not limited to auction fees, cleaning, transportation, reconditioning, and Wheels administrative fees.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Vehicle Purchase Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Driver Assistance Services Response Time Report",
+      "report_specifications": "Report identifying the wait/response time for each call to Driver Assistance Services and to which Fleet Management Service the call is associated with.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fleet Services Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Response Times",
+      "report_specifications": "Report identifying response times and each case department assigned to the e mail or phone question or concern.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fleet Services"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Savings",
+      "report_specifications": "Report that analyzes costs and tracks savings and will work with Walmart to identify opportunities to accordingly reduce and contain costs.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fleet Services"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Multiple Vehicles",
+      "report_specifications": "Report that identifies when a Driver has more than one Vehicle and accordingly update records when the applicable Vehicle has been returned.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fleet Services"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Fuel Costs Report",
+      "report_specifications": "Identify: \n• Fuel transaction date, type, cost, amount, time, and location. \n• Potentially fraudulent charges or misuse.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fuel Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Fuel Costs Exception Report",
+      "report_specifications": "Exception reporting identifying: \n• Vehicles that add fuel with octane higher than Vehicle requires two (2) or more times in a month. \n• Vehicles that fueled with more than five (5)gallons more than the stated tank capacity by the OEM. \n• Vehicles that have an MPG rating of more than twenty percent (20%) of an OEM-stated posting. \n• Vehicles that spend more than ten percent (10%) above fueling fleet average. \n• Vehicles that have non-fuel and non car wash related purchases charged on fuel card. \n• Vehicles that have not fueled in the past thirty (30) days. \n• Drivers in violation of Walmart policy based on this Fuel Costs Exception Report, along with the date, time, and type of violation. \n• Financial impact to Walmart, broken down by each Violation.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fuel Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Initial Accident Report",
+      "report_specifications": "Initial Accident Report Initial accident report to Walmart Claims Services team identifying: • Accident description. • Accident time and location. \n• Driver identification information.",
+      "frequency": "Within two (2)business hours of receiving notification of an accident from a driver",
+      "applicable_programs": [
+        "Collision Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "All Accidents Report",
+      "report_specifications": "All Accidents Report Accident report identifying:\n • All accidents for the month. \n• Other reasonably requested Walmart details.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Collision Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Mileage Logging Program Report",
+      "report_specifications": "Provide report of all driver-reported use of company Vehicles, broken down by business and personal use.Provide first notice to non-complaint drivers to ensure timely reporting, and second notice after fifteen (15) days after the reporting deadline. Vendor shall escalate to Walmart fleet manager when driver fails to report timely after thirty (30) days while continuing to follow up with driver until completed and escalate to the applicable Walmart contact in the event the driver fails to comply.",
+      "frequency": "Quarterly",
+      "applicable_programs": [
+        "Mileage Certification & Logging Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Mileage Logging Program Report",
+      "report_specifications": "Walmart drivers’ personal use mileage reporting, status of late or missing reporting, and associated taxable benefit to Walmart.",
+      "frequency": "Real-Time, accessible through Online Tools",
+      "applicable_programs": [
+        "Mileage Certification & Logging Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Expired Vehicles Report",
+      "report_specifications": "If Vendor is unable to validate that a registration renewal has been processed, the applicable vehicle will be added to an “Expired Vehicles” Report that will be shared with Walmart.",
+      "frequency": "Weekly",
+      "applicable_programs": [
+        "Registration Express Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Non Compliant Drivers re Title",
+      "report_specifications": "Report identifying Drivers that have not complied with license and title requirements and contacting Walmart’s designated contact who are within thirty (30)days of expiration.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Registration Express Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Title Status Report",
+      "report_specifications": "Report identifying the title status of all fleet Vehicles, including: \n• Rationale for any duplicate title.",
+      "frequency": "Bi-monthly (every two weeks per month)",
+      "applicable_programs": [
+        "Registration Express Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Vehicle State Change Report",
+      "report_specifications": "Vehicle State Change Report Report identifying Vehicles that have moved from one state to another in the preceding month.",
+      "frequency": "Monthly to Walmart’s designed contact",
+      "applicable_programs": [
+        "Insurance Card Administration Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Costs and Savings Report",
+      "report_specifications": "Report analyzing costs and savings to then work with Walmart to identify opportunities to accordingly reduce and contain costs.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Fleet Services"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Executive Repor",
+      "report_specifications": "Executive Report summarizing the status of Walmart’s Fleet pursuant to the Specifications Walmart communicates to Vendor.",
+      "frequency": "Quarterly",
+      "applicable_programs": [
+        "Fleet Services Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Repair Trends Report",
+      "report_specifications": "Report identifying repair details and trends outside of standard warranty coverage on certain Vehicles manufactured by specific manufacturers.",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Maintenance Assistance Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "Violations Report",
+      "report_specifications": "Report identifying all information related to violations payment, tracking, and non compliant drivers including, but not limited to, payment status, nature of the violation, affected Vehicle, and driver identification information.",
+      "frequency": "Real-Time, accessible through Online Tools",
+      "applicable_programs": [
+        "Violation Management Program"
+      ]
+    },
+    {
+      "info_type": "reporting_requirement",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "report_name": "DOT Inspections",
+      "report_specifications": "Vendor will create a Report alerting Walmart of upcoming due dates for annual U.S. DOT inspections for DOT-regulated Vehicles (90/60/30 days out).",
+      "frequency": "Monthly",
+      "applicable_programs": [
+        "Maintenance Assistance Program (DOT Inspections)"
+      ]
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "term": "L&T Services Baseline",
+      "definition": "“L&T Services Baseline” means that Vendor has met or exceeded the L&T SLS for three (3) consecutive Measurement Periods"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "term": "L&T SLS",
+      "definition": "“L&T SLS” means the Compliance (Registration Renewals), Compliance (State Changes), and Compliance (Initial License & Title) SLS as set forth in the “Service Level Agreement” (attached as Schedule 1)."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "term": "ECD",
+      "definition": "“ECD” means the \nestimated completion date which Vendor assigns to Walmart’s Fleet Management Services \nRequest which are reasonably based on the standard time necessary for completion of the \nspecific type of Fleet Management Service requested."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "SOW and Terminations",
+      "notes": null,
+      "citations": [],
+      "term": "Statement of Work Term",
+      "definition": "“Statement of Work Term” means the period beginning on the Statement of Work Effective Date and ending on the date the Statement of Work is terminated"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "SOW and Terminations",
+      "notes": null,
+      "citations": [],
+      "term": "Statement of Work Initial Term",
+      "definition": "The initial term of this Statement of Work begins on the Statement of Work Effective Date and continues for three (3) years (“Statement of Work Initial Term”)."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "SOW and Terminations",
+      "notes": null,
+      "citations": [],
+      "term": "Statement of Work Renewal Term",
+      "definition": "Upon expiration of the Statement of Work Initial Term, the Statement of Work Term shall automatically renew for additional one (1) year terms (each a “Statement of Work Renewal Term”) unless either Party provides written notice of termination to the other Party at least ninety (90) calendar days prior to expiration of the Statement of Work Initial Term or any Statement of Work Renewal Term."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "SOW and Terminations",
+      "notes": null,
+      "citations": [],
+      "term": "Termination",
+      "definition": "Notwithstanding the foregoing, if a Party defaults under the Agreement including a Default under this Statement of Work (after the expiration of any applicable cure periods), the non-breaching Party may immediately terminate this Statement of Work pursuant to the terms of the Agreement. Termination under this Section 5 does not limit either Party from pursuing any other remedies available to the Party, including, but not limited to, injunctive relief."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Walmart Vehicle Contact",
+      "definition": "means, with respect to any enrolled Vehicle, the Driver designated by Walmart to receive the enrollment packet (including any Toll Device) and other communications regarding such enrolled Vehicle, and may be the Driver of such enrolled Vehicle or the fleet manager."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Participating Toll Road",
+      "definition": "means any roadway that requires tolls and for which there is an active agreement between the related Toll Authority and Third Party Provider for payment of such Toll Charges; provided, if any toll road exclusively accepts toll processing through use of a Toll Device, such toll road shall only be considered a “Participating Toll Road” for an enrolled Vehicle enrolled in the Toll Management Program within the applicable Toll Region."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Toll Management Program Property",
+      "definition": "means all products, programs, materials and services provided to Walmart under this Program (including, without limitation, all Toll Devices and Toll Device holders or shields provided). When a Vehicle ceases to be enrolled in the Toll Management Program for any reason, all applicable Toll Management Program Property must be returned by Walmart to Vendor. If any Toll Management Program Property which is required to be returned is not returned within the timeframe specified in the instructions from Vendor or the Third Party Provider upon termination of a Vehicle from the Toll Management Program, any resulting charges and/or fees will be owed by Walmart."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Requisite Vehicle Information",
+      "definition": "means, with respect to any enrolled Vehicle: (1) DVN or full VIN; (2) License Plate Number; (3) Vehicle Description (make, model, color, axle count, weight); (4) Garage Location (street address, city, state, zip code); (5) Walmart Vehicle Contact Information (name, title, capacity (i.e., fleet manager or Driver), address, phone number (office and cell phone) and email address); (6) applicable radius for purposes of determining the applicable Toll Region; and (7) such other information as reasonably requested by Vendor from time to time for Toll Management purposes."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Supplemental Charges",
+      "definition": "means ISP Charges paid by Vendor to the Third Party Provider or any other third party in connection with this Program, including, without limitation, (1) fees for new, replacement or lost Transponder Devices imposed by any Toll Authority and/or Third Party Provider, (2) Toll Authority activation and deactivation charges, (3) monthly Transponder Device fees charged by Third Party Provider and/or any Toll Authority, (4) Third Party Provider fees such as video or transponder activation fees, transponder transfer fee (fee for transfer between Vehicles), and administration surcharge for changes in the process or method utilized in administering toll payments (including whether or not a Toll Device is used on any Participating Toll Road), (5) any parking charges; and (6) all shipping and handling costs for enrollment packets, Toll Devices, and other deliverables under this Program."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Third Party Provider",
+      "definition": "shall mean the Independent Service Provider that has entered into an agreement with Vendor to provide toll management products and services to customers of Vendor, as selected by Vendor. Third Party Provider is not a Subcontractor, agent, representative, or subsidiary of Vendor and may be terminated or replaced by Vendor at any time."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Toll Authority",
+      "definition": "means the owner of operator of any toll road, agency, or any other third party that is authorized to impose charges for use of such road."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Toll Charges",
+      "definition": "means all toll charges (which may include a surcharge imposed by the Toll Authority, but which shall not exceed the posted cash rate for any such toll) and related fees, costs and charges imposed by the Toll Authority with respect to any enrolled Vehicle that passes through any toll collection point on any Participating Toll Road."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Toll Device",
+      "definition": "means the proprietary electronic device or physical transponder box used for toll charges on applicable toll roads."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Toll Management Program (Toll Management/TollGuard)",
+      "notes": null,
+      "citations": [],
+      "term": "Toll Region",
+      "definition": "means, with respect to any enrolled Vehicle, the state(s) or region in which tolls for such enrolled Vehicle are likely to occur, as determined based on location of the Vehicle and radius selected by Walmart."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Violation Management Program",
+      "notes": null,
+      "citations": [],
+      "term": "Violation",
+      "definition": "means a violation of Applicable Law that results in a Vehicle and/or its Driver being ticketed. Vendor, either directly, through an Affiliate of Vendor, or through an ISP, will administer or coordinate the payment of Violations for any Vehicle enrolled by Walmart in the Violation Management Program as provided under this Program. Walmart is ultimately responsible for all Violations and any charges associated with such Violations, and shall be obligated to pay the full amounts incurred in connection with any Violation, plus the Violation Processing Fee specified on the Pricing Schedule. Walmart will provide Vendor with all reasonable information requested by Vendor in connection with each Vehicle enrolled in the Violation Management Program including, without limitation, Driver name and email address."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Violation Management Program",
+      "notes": null,
+      "citations": [],
+      "term": "hostage jurisdiction",
+      "definition": "shall mean any jurisdiction in which failure to timely pay any Violation(s), or any certain number of violations, may jeopardize the registrations of all Vehicles owned or leased by Vendor or any Affiliate of Vendor."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Vehicle Maintenance Assistance Program",
+      "notes": null,
+      "citations": [],
+      "term": "Third-Party Maintenance Services",
+      "definition": "Independent Providers Deliverables will be called “Third-Party Maintenance Services.”"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Vehicle Maintenance Assistance Program",
+      "notes": null,
+      "citations": [],
+      "term": "Maintenance Vehicles",
+      "definition": "Vehicles enrolled in the Maintenance Assistance Program are “Maintenance Vehicles.”"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Vehicle Maintenance Assistance Program",
+      "notes": null,
+      "citations": [],
+      "term": "National Account Vendors",
+      "definition": "national Independent Service Providers identified by Vendor from time to time as being in Vendor’s National Account Vendor network (although individual franchise locations may not participate)"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Vehicle Maintenance Assistance Program",
+      "notes": null,
+      "citations": [],
+      "term": "National Account Vendors",
+      "definition": "“Network Vendors,”  which are select non-National Account Vendor Independent Service Providers (e.g., independent garages, service centers, and dealerships) identified by Vendor from time to time as being in Vendor’s vendor network."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Driver Passport",
+      "notes": null,
+      "citations": [],
+      "term": "Driver Passport",
+      "definition": "“Driver Passport” means the maintenance schedule that is used to identify preventative maintenance for such Maintenance Vehicles which may include, without limitation, applicable manufacturer recommended schedule of maintenance for each Maintenance Vehicle that can be used to initiate purchases for certain identified preventative Vehicle maintenance services (e.g. oil changes) (“PM Services”)"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Driver Passport",
+      "notes": null,
+      "citations": [],
+      "term": "Physical Driver Passport",
+      "definition": "Vendor will provide Walmart Drivers with one physical version of a Driver Passport for each Maintenance Vehicle"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Driver Passport",
+      "notes": null,
+      "citations": [],
+      "term": "Driver Passport Online Tools",
+      "definition": "Vendor will make the Driver Passport available through the Online Tools."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Push Notifications",
+      "notes": null,
+      "citations": [],
+      "term": "Notifications",
+      "definition": "Vendor will send push notification reminders for PM Services to Drivers that have opted in to receive such notifications."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Push Notifications",
+      "notes": null,
+      "citations": [],
+      "term": "Vendor Liability",
+      "definition": "Vendor is not responsible for and will have no liability whatsoever for any losses or damages of any kind arising out of failure of Walmart or any of Walmart’s Drivers to have any PM Services performed on any Maintenance Vehicle, for any failure by Vendor regarding the timely sending of any notifications, or for the selection of particular PM Services or service intervals for any Maintenance Vehicle."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Rental Vehicles",
+      "notes": null,
+      "citations": [],
+      "term": "Vehicle Rental Service Financing",
+      "definition": "Vendor will arrange and finance vehicle rental services on behalf of Walmart through an Independent Service Provider. Upon a request by Walmart, Vendor will use commercially reasonable efforts to work with Walmart’s rental car company of choice."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Rental Vehicles",
+      "notes": null,
+      "citations": [],
+      "term": "Rental Vehicle Fees",
+      "definition": "Walmart or the Driver will be the renter of any such rental vehicle and will be required to sign a standard rental contract with the Independent Service Provider regarding use of the rental vehicle. Walmart hereby authorizes Vendor to settle any tickets, tolls, and/or driving violations, fines and other fees incurred in connection with any rental vehicle which are received by Vendor, and to pay any amounts due. Walmart shall pay to Vendor any such amounts paid by Vendor on behalf of Walmart for each such violation that is paid by Vendor plus a reasonable administrative charge as set forth on the Pricing Schedule."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Roadside Assistance",
+      "notes": null,
+      "citations": [],
+      "term": "Roadside Assistance",
+      "definition": "Fleet Management Services provided under the Maintenance Assistance Program also include Vendor arranging twenty-four (24) hour emergency roadside assistance upon request by any Driver of a Maintenance Vehicle."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Expired Warranty Assistance",
+      "notes": null,
+      "citations": [],
+      "term": "Expired Warranty Assistance",
+      "definition": "In the event that Maintenance Vehicle repair falls slightly outside the OEM warranty period, Vendor will work in good faith with the applicable manufacturer to seek reimbursement of repair costs for the impacted Maintenance Vehicle. Vendor cannot guarantee that the applicable manufacturer will provide any reimbursement to Walmart. Further, Walmart grants Vendor a limited, non-exclusive, royalty-free, non-transferrable, non-sublicensable, license to access and use the OEM Vehicle Data during this Statement of Work Term solely in connection with providing Fleet Management Services pursuant to this Statement of Work."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Department of Transportation Inspection Administration",
+      "notes": null,
+      "citations": [],
+      "term": "DOT Inspections",
+      "definition": "Walmart Drivers will schedule the Department of Transportation (“DOT”) inspections with local Independent Service Providers or contact Vendor’s 1-800 number for an Independent Service Provider to perform the inspection. Walmart Drivers are responsible for ensuring the Vehicle is inspected and repaired, if applicable, in a timely manner and providing Vendor with a copy of the inspection report via Mobile Assistant/Online Tools. Vendor’s technicians will further request that the Independent Service Providers forward a copy of the repair order and DOT inspection report when the purchase order is provided to such shops. Vendor will run a monthly audit Report to identify any DOT-regulated vehicle that has obtained the required DOT inspection and validate the images in Vendor’s Walmart portal. At no charge to Walmart, Vendor will process a test run of the DOT inspection process on two (2) Vehicles."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "term": "CRM System",
+      "definition": "“CRM System” means Vendor’s customer relationship management system, which is used to manage Vendor client requests."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "notes": null,
+      "citations": [],
+      "term": "Service Level Standard Failures",
+      "definition": "“SLS Failure” means Vendor failed to meet the applicable SLS during a Measurement Period."
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "notes": null,
+      "citations": [],
+      "term": "Service Level Fee Credit",
+      "definition": "For each Measurement Period in which there is an SLS Failure, Vendor will provide to Walmart a credit (“Service Level Fee Credit”)"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "notes": null,
+      "citations": [],
+      "term": "Credit Year",
+      "definition": "“Credit Year” means each consecutive twelve (12) month period beginning on the Statement of Work Effective Date"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "notes": null,
+      "citations": [],
+      "term": "Initial SLS Failure",
+      "definition": "“Initial SLS Failure” means each SLS Failure in connection with an SLS for which there was no SLS Failure during the previous Measurement Period"
+    },
+    {
+      "info_type": "definition",
+      "contract_section": "Service Level Standard Failure and Service Level Fee Credits",
+      "notes": null,
+      "citations": [],
+      "term": "Continuing SLS Failure",
+      "definition": "“Continuing SLS Failure” means each SLS Failure in connection with an SLS for which there was an SLS Failure during the previous Measurement Period"
+    },
+    {
+      "info_type": "online_tool",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "platform": "The FleetView Platform",
+      "tool_name": "FleetView Web",
+      "description": "FleetView Web is a hosted web service that allows Walmart to view a combination of cross-fleet views on individual Drivers and Vehicles;"
+    },
+    {
+      "info_type": "online_tool",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "platform": "The FleetView Platform",
+      "tool_name": "DriverView Web",
+      "description": "DriverView is a limited-scope web application providing read-only information about a single fleet Vehicle to its assigned driver, as well as limited transaction capability to a Driver eligible to drive a fleet Vehicle;"
+    },
+    {
+      "info_type": "online_tool",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "platform": "The FleetView Platform",
+      "tool_name": "FleetView Mobile",
+      "description": "FleetView Mobile is mobile application available on IOS and Android devices accessing the same data as FleetView Web and providing a subset of capabilities to fleet managers while on-the-go; and"
+    },
+    {
+      "info_type": "online_tool",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "platform": "The FleetView Platform",
+      "tool_name": "Wheels Mobile Assistant",
+      "description": "Wheels Mobile Assistant is a mobile application available on IOS and Android devices accessing the same data as FleetView Web and providing a set of capabilities to Drivers of fleet Vehicles (including Vehicle insurance and registration detail, as well as GPS-enabled trip logging)."
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Management Services Task Force",
+      "task": "Vendor shall provide Walmart access to a team of Program experts who will promptly and collaboratively work with Walmart personnel to resolve the current backlog of issues related to Fleet Management Services provided under the Original Agreements (“Fleet Management Services Task Force”).",
+      "responsible_party": "Vendor",
+      "timing": "On the Statement of Work Effective Date",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Management Services Task Force",
+      "task": "The Fleet Management Services Task Force will be available to work with Walmart   to accordingly resolve issues related to Fleet Management Services. The Parties may mutually agree to extend or reduce the tenure of the Fleet Management Services Task Force based on how promptly the issues are resolved. The Service Level Agreement identifies the Programs that initially require the attention of the Fleet Management Services Task Force. The Fleet Management Services Task Force will be provided by Vendor at no additional change to Walmart.",
+      "responsible_party": "Fleet Management Services Task Force",
+      "timing": "as needed, during the hours of 9am-5pm (Central Time)",
+      "frequency": "each business day for six (6) months commencing on the Statement of Work Effective Date"
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor will ensure that it maintains an adequate number of dedicated employees to provide Walmart with Fleet Management Services.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor will assign employees to Walmart with specific Program expertise, as and when needed, which may include, without limitation, data analysts and license and title compliance specialists, to ensure that the Fleet Management Services are being performed to the applicable Specifications.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor will also provide to Walmart a designated License and Titling (“L&T”) Program compliance specialist: (i) for the period beginning on the Statement of Work Effective Date and ending on the date that the license and titling Fleet Management Services meet the L&T Services Baseline (defined below); and (ii) for any subsequent period following the occurrence of any service level standard (SLS) Failure in connection any individual L&T SLS for three (3) consecutive Measurement Periods (as defined in the Service Level Agreement) and ending when Fleet Management Services meet the L&T Services Baseline.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "(A) assist Walmart with the creation and maintenance of customized Reports (as defined in Section 4) related to Fleet Management Services",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "(B) assist Walmart in creating customized dashboard Reports within the Online Tools.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor shall respond to any Walmart request in connection with the Fleet Management Services received through the Online Tools via the FleetView request management tool (“Fleet Management Services Request”)",
+      "responsible_party": "Vendor",
+      "timing": "within nine (9) business hours (“Response Time”) of receipt of any such Fleet Management Services Request",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor’s responses to Walmart inquires related to the Fleet Management Services Programs after its initial Fleet Management Services Request",
+      "responsible_party": "Vendor",
+      "timing": "within nine (9) business hours (“Response Time”) of receipt of any such Fleet Management Services Request",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor will use commercially reasonable efforts to perform data cleanup, and ensure the integrity, accuracy, and completeness of data which Vendor enters into the Online Tools on behalf of Walmart",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "Vendor shall not be responsible for the accuracy, completeness, or reliability of any data provided by Walmart, any Driver, or any Independent Service Provider.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Response Times, Fleet Management Services Report, and Service Level Agreement",
+      "notes": null,
+      "citations": [],
+      "topic": "General",
+      "task": "If, Walmart is required to obtain a rental vehicle due to a failure by Vendor to provide the Fleet Management Services pursuant to the applicable Specification (due solely to causes within Vendor’s control), then Vendor will either pay, or upon receipt of an invoice or other documentation from Walmart, will reimburse Walmart, for the cost of such rental vehicle.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Enrollment / Unenrollment",
+      "task": "Walmart may request that any Vehicle be enrolled and/or unenrolled from any Program set forth in this Section 2 upon written notice to Vendor, subject to the terms of this SOW. Written notice may occur through Online Tools or via email from Walmart management.",
+      "responsible_party": "Walmart",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Insurance Card Administration Program",
+      "task": "Vendor will provide insurance cards to Walmart’s Drivers for vehicles leased from Vendor or its Affiliates, Vehicles owned by Walmart, or Vehicles leased from a party other than Vendor or one of Vendor’ Affiliates, to serve as proof of insurance based on the insurance certificate provided by Walmart to Vendor or an Affiliate of Vendor (in states where regulations permit Vendor to do so under this Program).",
+      "responsible_party": "VEndor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Insurance Card Administration Program",
+      "task": "In all other states, for vehicles leased from Vendor or its Affiliates or owned by Walmart, in each case with Vehicle data loaded into the Online Tools, Vendor will provide relevant information, such as the identity of new Vehicles going into service, upcoming insurance expirations and the relocation of identified Vehicles either (x) to Walmart, or (y) if directed by Walmart, to Walmart’s insurer, insurance broker, or insurance agent for use in procuring proof of insurance.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Insurance Card Administration Program",
+      "task": "If applicable, Walmart shall obtain and provide to Vendor written consents\nfrom Walmart’s insurer, insurance broker, or insurance agent authorizing Vendor and any Affiliate \nof Vendor to issue insurance cards on the insurer’s behalf.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Insurance Card Administration Program",
+      "task": "Walmart will provide an updated insurance certificate to Vendor",
+      "responsible_party": "Vendor",
+      "timing": "at least five (5) business days prior to expiration of Walmart’s insurance certificate.",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Insurance Card Administration Program",
+      "task": "Promptly upload all Walmart designated insurance cards to Wheels Mobile Assistant application feature in the Online Tools within one (1) business day of approval of a Walmart certificate of insurance by Vendor’s credit and risk team.",
+      "responsible_party": null,
+      "timing": "within one (1) business day of approval of a Walmart certificate of insurance by Vendor’s credit and risk team.",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Vendor shall create and maintain a profile of Walmart which will include such information as Vendor, in its sole discretion, deems necessary or advisable in order to provide the Fleet Management Services under the Fleet Services Program. This information may include, but is not limited to, the total number of Vehicles enrolled in at least one Program.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Walmart shall, in a timely manner, provide Vendor with all information Vendor requires to create and maintain Walmart’s profile.",
+      "responsible_party": "Walmart",
+      "timing": "in a timely manner",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Walmart shall be responsible for setting and enforcing fleet policies and guidelines that are consistent with this Statement of Work",
+      "responsible_party": "Walmart",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Walmart shall designate an authorized fleet contact to administer the fleet and to serve as liaison between Walmart and Vendor. The fleet contact shall, among other things, enforce fleet policies and guidelines and resolve issues relating to the fleet and Walmart’s Drivers that are beyond the scope of Fleet Management Services provided by Vendor under this Statement of Work.",
+      "responsible_party": "Walmart",
+      "timing": "Walmart’s initial authorized fleet contact will be specified in the set-up form to be completed by Walmart prior to the commencement of Fleet Management Services.",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Walmart shall promptly inform Vendor in writing of any changes in authorized fleet contact information.",
+      "responsible_party": "Walmart",
+      "timing": "promptly",
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Fleet Services Program",
+      "task": "Vendor shall be entitled to rely on the authority of such person to act for Walmart, unless and until Vendor receives express written notice to the contrary from Walmart.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Recall Data Service Program",
+      "task": "Pursuant to the Recall Data Service Program (“RDS Program”), Vendor will make available to Walmart certain data relating to recalls that may potentially impact Vehicles.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Recall Data Service Program",
+      "task": "Recall information is obtained by Vendor from Independent Service Providers.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Recall Data Service Program",
+      "task": "Vendor will make such data available via the Online Tools to the applicable Drivers of such Vehicles.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Recall Data Service Program",
+      "task": "Walmart hereby acknowledges that Vendor is not the provider of any recall information, and that Vendor disclaims any liability for, and makes no warranty, whether express or implied, concerning any recall campaign or recall information.",
+      "responsible_party": "Walmart",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "responsibility",
+      "contract_section": "Programs",
+      "notes": null,
+      "citations": [],
+      "topic": "Recall Data Service Program",
+      "task": "Vendor is not responsible for and will have no liability whatsoever for any losses or damages of any kind arising out of a failure by Walmart or any of Walmart’s Drivers to have any services performed on any Vehicle in connection with any recall.",
+      "responsible_party": "Vendor",
+      "timing": null,
+      "frequency": null
+    },
+    {
+      "info_type": "signature",
+      "contract_section": "Signatures",
+      "notes": null,
+      "citations": [],
+      "company": "Walmart",
+      "signed_date_raw": "April 4, 2025 | 17:05 CDT",
+      "name": "Laura Jozwiak",
+      "title": "Chief Client Officer"
+    },
+    {
+      "info_type": "signature",
+      "contract_section": "Signatures",
+      "notes": null,
+      "citations": [],
+      "company": "Wheels",
+      "signed_date_raw": "April 4, 2025 | 17:23 CDT",
+      "name": "Tim Skinner",
+      "title": "SVP Finance Walmart US"
+    },
+    {
+      "info_type": "information_section",
+      "contract_section": "Report Requirements",
+      "notes": null,
+      "citations": [],
+      "topic": "Reporting",
+      "description": "Vendor, during this Statement of Work Term, will make available to Walmart separate reports relating to the outputs/details generated by the Online Tools in connection with Programs in which Walmart is enrolled (“Reports”). The Specifications applicable to such Reports are set forth in Schedule 3."
+    },
+    {
+      "info_type": "information_section",
+      "contract_section": "Service Level Agreement (“SLA”)",
+      "notes": null,
+      "citations": [],
+      "topic": "SLA",
+      "description": "The Service Level Standards applicable to this Statement of Work are included in the SLA attached as Schedule 1"
+    },
+    {
+      "info_type": "information_section",
+      "contract_section": "Fees, Payment and Invoicing",
+      "notes": null,
+      "citations": [],
+      "topic": "Fees",
+      "description": "Fees for the Fleet Management Services are set forth in the Pricing Schedule, attached as Schedule 2 of this Statement of Work."
+    },
+    {
+      "info_type": "information_section",
+      "contract_section": "Fees, Payment and Invoicing",
+      "notes": null,
+      "citations": [],
+      "topic": "Payment and Invoicing",
+      "description": "Section 5 of the Agreement accordingly governs with respect to invoicing and payment."
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "item": "Releases",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "item": "Online Tools Use Rights",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Online Tools",
+      "notes": null,
+      "citations": [],
+      "item": "Online Tools Customizations",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Deliverables",
+      "notes": null,
+      "citations": [],
+      "item": "Standard Deliverables",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Deliverables",
+      "notes": null,
+      "citations": [],
+      "item": "Custom Deliverables",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Deliverables",
+      "notes": null,
+      "citations": [],
+      "item": "Deliverable License",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": "Driver Services Center",
+      "notes": null,
+      "citations": [],
+      "item": "Driver Services Center",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": null,
+      "notes": null,
+      "citations": [],
+      "item": "Bonus",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": null,
+      "notes": null,
+      "citations": [],
+      "item": "Payment Terms",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": null,
+      "notes": null,
+      "citations": [],
+      "item": "Insurnace Requirements",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": null,
+      "notes": null,
+      "citations": [],
+      "item": "Auditability",
+      "detail": null
+    },
+    {
+      "info_type": "uncategorised",
+      "contract_section": null,
+      "notes": null,
+      "citations": [],
+      "item": "Penalities",
+      "detail": null
+    }
+  ],
+  "counts": {
+    "Pricing Items": 34,
+    "SLA Items": 12,
+    "Reporting Requirements": 22,
+    "Misc - Definitions": 39,
+    "Misc - Online Tools": 4,
+    "Misc - Responsibilities": 29,
+    "Misc - Signatures": 2,
+    "Misc - Information Section": 4,
+    "Misc - TBD": 12
+  },
+  "total": 158
+}

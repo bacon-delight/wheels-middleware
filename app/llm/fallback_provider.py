@@ -29,7 +29,8 @@ class FallbackProvider(LLMProvider):
         system: str,
         user_text: str,
         tool: Tool,
-        max_tokens: int = 8000,
+        cache_prefix: str | None = None,
+        max_tokens: int = 16000,
         temperature: float = 0.0,
     ) -> LLMResult:
         errors: list[str] = []
@@ -39,6 +40,7 @@ class FallbackProvider(LLMProvider):
                     system=system,
                     user_text=user_text,
                     tool=tool,
+                    cache_prefix=cache_prefix,
                     max_tokens=max_tokens,
                     temperature=temperature,
                 )

@@ -16,6 +16,34 @@ from ..store.repository import Repository, utcnow
 from .schedule import generate_rows, normalize_frequency
 
 
+def _fee_item(record: dict[str, Any]) -> dict[str, Any] | None:
+    """Project a pricing term into the fee-item shape the estimate consumes.
+
+    The unit basis is derived from the contract's own frequency wording rather than trusted
+    from the model, because that one field decides whether a charge enters recurring dues.
+    """
+    from .frequency import classify
+
+    found = classify(record.get("frequency"), record.get("calculation"))
+    amount = record.get("amount")
+    tiers = record.get("tier_bands") or []
+    if amount is None and not tiers and record.get("rate_pct") is None:
+        return None  # a program named with nothing priced under it bills nothing
+    return {
+        "description": record.get("item") or record.get("program") or "",
+        "fee_type": record.get("fee_type") or "other",
+        "amount": amount,
+        "currency": record.get("currency") or "USD",
+        "rate_pct": record.get("rate_pct"),
+        "unit_basis": found.unit_basis,
+        "billing_class": found.billing_class,
+        "minimum": record.get("minimum"),
+        "maximum": record.get("maximum"),
+        "tier_bands": tiers,
+        "conditions": record.get("conditions") or [],
+    }
+
+
 def build_billing_config(
     repo: Repository, engagement_id: str, submission_id: str, s3=None
 ) -> dict[str, Any]:
@@ -27,28 +55,62 @@ def build_billing_config(
         "client_name": engagement.client_name if engagement else None,
         "generated_at": utcnow(),
         "service_lines": [],
-        "lease_terms": None,
+        "pricing_items": [],
+        "billing_frequency": None,
         "excluded_services": [],
     }
     if sub is None:
         return config
 
+    # Pricing terms are grouped by the program they belong to, and projected into the same
+    # `service_lines` shape the estimate and the interface already read. Keeping that shape is
+    # what lets the extraction change underneath billing without billing changing at all.
+    by_program: dict[str, dict[str, Any]] = {}
+    excluded: list[str] = []
     for document_id in sub.docs().values():
         doc = repo.get_document(engagement_id, document_id)
         if doc is None:
             continue
         version = repo.get_document_version(engagement_id, document_id, doc.current_version)
-        fields = repo.list_fields(engagement_id, document_id, doc.current_version)
-        for f in fields:
-            if f.elected:
-                config["service_lines"].append(
-                    {"service": f.service, "fee_items": f.fee_items, "approved": f.approved}
+        if version and version.extraction:
+            meta = version.extraction.get("doc_meta") or {}
+            config["billing_frequency"] = (
+                config.get("billing_frequency") or meta.get("billing_frequency")
+            )
+        for term in repo.list_terms(engagement_id, document_id, doc.current_version, "pricing"):
+            if term.superseded:
+                continue
+            record = term.record or {}
+            fee = _fee_item(record)
+            entry = by_program.setdefault(
+                term.program_id or (record.get("program") or "Unclassified"),
+                {
+                    "service": record.get("program") or "Unclassified",
+                    "program_id": term.program_id,
+                    "fee_items": [],
+                    "approved": True,
+                },
+            )
+            if fee is not None:
+                entry["fee_items"].append(fee)
+                config["pricing_items"].append(
+                    {**fee, "program": entry["service"], "item": record.get("item"),
+                     "approved": term.approved, "billing_class": fee["billing_class"]}
                 )
-            else:
-                # Explicitly record non-elected services so they are never billed.
-                config["excluded_services"].append(f.service)
-        if version and version.extraction and version.extraction.get("lease_terms"):
-            config["lease_terms"] = version.extraction["lease_terms"]
+            entry["approved"] = entry["approved"] and term.approved
+
+    config["service_lines"] = list(by_program.values())
+    # What the catalog says Wheels sells that this engagement's agreements do not price. More
+    # honest than the old list of un-elected enum members, which could only ever name thirteen.
+    covered = {c.program_id for c in repo.list_coverage(engagement_id)}
+    try:
+        from ..catalog.store import load_snapshot
+
+        snapshot = load_snapshot(repo)
+        excluded = [p.name for p in snapshot.active_programs if p.program_id not in covered]
+    except Exception:  # noqa: BLE001 - a missing catalog must not stop billing
+        excluded = []
+    config["excluded_services"] = excluded
 
     if s3 is None:
         from ..store.s3 import S3Store

@@ -10,6 +10,7 @@ from . import (
     insights,
     me,
     payments,
+    services,
     submissions,
     users,
     vehicles,
@@ -26,5 +27,6 @@ api_router.include_router(finance.router)
 api_router.include_router(users.router)
 api_router.include_router(payments.router)
 api_router.include_router(insights.router)
+api_router.include_router(services.router)
 
 __all__ = ["api_router"]

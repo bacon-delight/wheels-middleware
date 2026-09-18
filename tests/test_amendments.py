@@ -18,10 +18,11 @@ from app.auth.principal import Principal
 from app.lifecycle.amendment import can_open_amendment, cycle_label
 from app.lifecycle.submission_state import Role, SubmissionStatus
 from app.main import app
-from app.store.models import Membership, ReviewField
+from app.store.models import Membership
 from app.store.repository import Repository, utcnow
 from app.store.s3 import S3Store
 
+from .pricing_helpers import seed_pricing
 from .test_api import REGION, _as, _drive_to_active, _make_table, _make_vehicles_table
 
 
@@ -126,10 +127,8 @@ def test_the_amendment_takes_over_once_it_goes_live(ctx):
         eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value
     )
     # The renewal doubles the fuel rate.
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=did, version=1, field_id="fuel", service="Fuel",
-        elected=True, confidence=0.95, needs_review=False, approved=True,
-        fee_items=[{"amount": 8.0, "unit_basis": "per_vehicle_per_month"}], citations=[]))
+    seed_pricing(repo, eid, did, 1, program="Fuel Management Program",
+                  item="Fuel Fee", amount=8.0)
 
     client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
     repo.put_membership(Membership(

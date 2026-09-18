@@ -27,7 +27,11 @@ _FREQ: dict[str, tuple[int, int]] = {
 
 
 def normalize_frequency(config: dict[str, Any] | None) -> str:
-    raw = str(((config or {}).get("lease_terms") or {}).get("billing_frequency") or "").lower()
+    cfg = config or {}
+    # The billing frequency moved onto the document metadata when lease terms folded into
+    # pricing; the old location is still read so configs generated before that keep working.
+    legacy = (cfg.get("lease_terms") or {}).get("billing_frequency")
+    raw = str(cfg.get("billing_frequency") or legacy or "").lower()
     if "quarter" in raw:
         return "quarterly"
     if "year" in raw or "annual" in raw:

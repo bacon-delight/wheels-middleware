@@ -12,7 +12,7 @@ try:  # PyMuPDF >= 1.24 exposes `pymupdf`; older wheels only expose `fitz`.
 except ImportError:  # pragma: no cover
     import fitz as pymupdf
 
-from .base import BBox, DocumentParse, OCREngine, PageParse, Source, Word
+from .base import BBox, DocumentParse, OCREngine, PageParse, Source, TableParse, Word
 
 
 def _open(source: Source):
@@ -21,10 +21,46 @@ def _open(source: Source):
     return pymupdf.open(str(source))
 
 
+def _tables(page, w: float, h: float) -> list[TableParse]:
+    """Detected tables on one page, with cells kept exactly as found.
+
+    Detection is best-effort by nature: a contract that lays its pricing out in prose yields
+    nothing here, and that is fine — tables are an extra signal on top of the page text, never
+    a replacement for it. A failure to detect must never fail the parse.
+    """
+    try:
+        found = page.find_tables()
+    except Exception:  # noqa: BLE001 - a page we cannot analyse still has usable text
+        return []
+    out: list[TableParse] = []
+    for table in getattr(found, "tables", []) or []:
+        try:
+            rows = [[(c or "") for c in row] for row in table.extract()]
+        except Exception:  # noqa: BLE001
+            continue
+        if not rows:
+            continue
+        x0, y0, x1, y1 = table.bbox
+        out.append(
+            TableParse(
+                bbox=BBox(x0 / w, y0 / h, x1 / w, y1 / h),
+                rows=rows,
+                header=[(c or "") for c in (table.header.names if table.header else [])],
+            )
+        )
+    return out
+
+
 class PyMuPDFEngine(OCREngine):
     name = "pymupdf"
 
-    def parse(self, source: Source) -> DocumentParse:
+    def parse(self, source: Source, *, tables: bool = False) -> DocumentParse:
+        """Parse the document. `tables` is opt-in because table detection is the expensive part.
+
+        The parse worker only needs text (to classify) and word geometry (to render), so it
+        leaves tables off; the extract worker turns them on, and the detection runs once per
+        document rather than twice.
+        """
         doc = _open(source)
         try:
             pages: list[PageParse] = []
@@ -51,6 +87,7 @@ class PyMuPDFEngine(OCREngine):
                         height=h,
                         text=page.get_text("text"),
                         words=words,
+                        tables=_tables(page, w, h) if tables else [],
                     )
                 )
             return DocumentParse(engine=self.name, pages=pages)

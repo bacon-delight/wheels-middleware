@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 
 from .base import LLMProvider, LLMResult, Tool
+
+log = logging.getLogger(__name__)
 
 
 class AnthropicProvider(LLMProvider):
@@ -30,15 +34,31 @@ class AnthropicProvider(LLMProvider):
         system: str,
         user_text: str,
         tool: Tool,
-        max_tokens: int = 8000,
+        cache_prefix: str | None = None,
+        max_tokens: int = 16000,
         temperature: float = 0.0,
     ) -> LLMResult:
         client = self._get_client()
+
+        # The breakpoint goes at the end of the last unchanging block, so the tool schema, the
+        # system prompt and the whole contract are cached together and only the per-call
+        # instruction is re-read.
+        system_blocks: list[dict] = [{"type": "text", "text": system}]
+        if cache_prefix:
+            system_blocks.append(
+                {
+                    "type": "text",
+                    "text": cache_prefix,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            )
+
+        started = time.monotonic()
         resp = client.messages.create(
             model=self.model,
             max_tokens=max_tokens,
             temperature=temperature,
-            system=system,
+            system=system_blocks,
             tools=[
                 {
                     "name": tool.name,
@@ -49,12 +69,19 @@ class AnthropicProvider(LLMProvider):
             tool_choice={"type": "tool", "name": tool.name},
             messages=[{"role": "user", "content": user_text}],
         )
+        latency_ms = int((time.monotonic() - started) * 1000)
+        usage = resp.usage
         for block in resp.content:
             if block.type == "tool_use" and block.name == tool.name:
                 return LLMResult(
                     data=block.input,
-                    input_tokens=resp.usage.input_tokens,
-                    output_tokens=resp.usage.output_tokens,
+                    input_tokens=usage.input_tokens,
+                    output_tokens=usage.output_tokens,
                     model=self.model,
+                    stop_reason=resp.stop_reason,
+                    cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
+                    cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
+                    provider=self.name,
+                    latency_ms=latency_ms,
                 )
         raise ValueError("Anthropic response contained no matching tool_use block")

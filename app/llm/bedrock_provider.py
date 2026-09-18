@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 from .base import LLMProvider, LLMResult, Tool
+
+log = logging.getLogger(__name__)
 
 
 class BedrockProvider(LLMProvider):
@@ -40,28 +44,50 @@ class BedrockProvider(LLMProvider):
         system: str,
         user_text: str,
         tool: Tool,
-        max_tokens: int = 8000,
+        cache_prefix: str | None = None,
+        max_tokens: int = 16000,
         temperature: float = 0.0,
     ) -> LLMResult:
         client = self._get_client()
-        resp = client.converse(
-            modelId=self.model_id,
-            system=[{"text": system}],
-            messages=[{"role": "user", "content": [{"text": user_text}]}],
-            toolConfig={
-                "tools": [
-                    {
-                        "toolSpec": {
-                            "name": tool.name,
-                            "description": tool.description,
-                            "inputSchema": {"json": tool.input_schema},
-                        }
+        tool_config = {
+            "tools": [
+                {
+                    "toolSpec": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "inputSchema": {"json": tool.input_schema},
                     }
-                ],
-                "toolChoice": {"tool": {"name": tool.name}},
-            },
-            inferenceConfig={"maxTokens": max_tokens, "temperature": temperature},
-        )
+                }
+            ],
+            "toolChoice": {"tool": {"name": tool.name}},
+        }
+
+        def _call(with_cache: bool):
+            # Converse marks a cache breakpoint with a cachePoint block, not the cache_control
+            # field the Messages API uses.
+            blocks: list[dict[str, Any]] = [{"text": system}]
+            if cache_prefix:
+                blocks.append({"text": cache_prefix})
+                if with_cache:
+                    blocks.append({"cachePoint": {"type": "default"}})
+            return client.converse(
+                modelId=self.model_id,
+                system=blocks,
+                messages=[{"role": "user", "content": [{"text": user_text}]}],
+                toolConfig=tool_config,
+                inferenceConfig={"maxTokens": max_tokens, "temperature": temperature},
+            )
+
+        started = time.monotonic()
+        try:
+            resp = _call(with_cache=bool(cache_prefix))
+        except Exception as e:  # noqa: BLE001 - caching is an optimisation, never a failure
+            if not cache_prefix:
+                raise
+            log.warning("Bedrock rejected the cache point (%s); retrying uncached", e)
+            resp = _call(with_cache=False)
+        latency_ms = int((time.monotonic() - started) * 1000)
+
         data = _extract_tool_input(resp, tool.name)
         usage = resp.get("usage", {})
         return LLMResult(
@@ -69,6 +95,11 @@ class BedrockProvider(LLMProvider):
             input_tokens=usage.get("inputTokens"),
             output_tokens=usage.get("outputTokens"),
             model=self.model_id,
+            stop_reason=resp.get("stopReason"),
+            cache_read_tokens=usage.get("cacheReadInputTokens"),
+            cache_write_tokens=usage.get("cacheWriteInputTokens"),
+            provider=self.name,
+            latency_ms=latency_ms,
         )
 
 

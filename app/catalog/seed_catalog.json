@@ -1,0 +1,1987 @@
+{
+  "programs": [
+    {
+      "program_id": "maintenance-assistance",
+      "name": "Maintenance Assistance Program",
+      "aliases": [
+        "Fleet Maintenance Management Program",
+        "Maintenance & Repair Management",
+        "Maintenance Consultation Program",
+        "Maintenance and Repair Management",
+        "Preventive Maintenance Program",
+        "Vehicle Maintenance Assistance Program"
+      ],
+      "contract_count": 12,
+      "category": "Maintenance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "administrative-fee",
+          "name": "Administrative Fee (Non-Network Vendor transactions)",
+          "aliases": [
+            "Administrative Fee (other than National Account Vendor transactions)"
+          ]
+        },
+        {
+          "item_id": "administrative-fee-for-maintenance-consultation",
+          "name": "Administrative Fee for Maintenance Consultation (non-national account vendors)",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-set-up-fee-for-non-donlen-vehicles",
+          "name": "Administrative Set-Up Fee for Non-Donlen Vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "annual-rebate-on-national-account-shop-spend",
+          "name": "Annual rebate on National Account shop spend",
+          "aliases": []
+        },
+        {
+          "item_id": "complete-driver-kit",
+          "name": "Complete Driver Kit",
+          "aliases": []
+        },
+        {
+          "item_id": "dot-inspection-administration-fee",
+          "name": "DOT Inspection Administration Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "driver-passport-issuance-fee",
+          "name": "Driver Passport Issuance Fee (Initial)",
+          "aliases": [
+            "Driver Passport Issuance Fee (Initial or Replacement)",
+            "Driver Passport Issuance Fee (Replacement)"
+          ]
+        },
+        {
+          "item_id": "driver-passport-replacement-loss-or-company-directed-reprint",
+          "name": "Driver Passport replacement – loss or Company-directed reprinting/remailing",
+          "aliases": []
+        },
+        {
+          "item_id": "driver-sale",
+          "name": "Driver Sale Program",
+          "aliases": []
+        },
+        {
+          "item_id": "duplicate-registration",
+          "name": "Duplicate Registration",
+          "aliases": []
+        },
+        {
+          "item_id": "duplicate-title",
+          "name": "Duplicate Title",
+          "aliases": []
+        },
+        {
+          "item_id": "e-coupon-option",
+          "name": "E-Coupon Option",
+          "aliases": []
+        },
+        {
+          "item_id": "each-new-or-replacement-coupon-book",
+          "name": "Each New or Replacement Coupon Book",
+          "aliases": []
+        },
+        {
+          "item_id": "emergency-roadside",
+          "name": "Emergency Roadside Service",
+          "aliases": []
+        },
+        {
+          "item_id": "fleetdesk",
+          "name": "FleetDesk",
+          "aliases": []
+        },
+        {
+          "item_id": "glass-discount",
+          "name": "Glass Discount",
+          "aliases": []
+        },
+        {
+          "item_id": "glass-repair-replacement",
+          "name": "Glass Repair/Replacement Program",
+          "aliases": []
+        },
+        {
+          "item_id": "maintenance-repair-management",
+          "name": "Maintenance & Repair Management",
+          "aliases": []
+        },
+        {
+          "item_id": "maintenance-assistance-cars-light-duty-trucks",
+          "name": "Maintenance Assistance Program – cars and light-duty trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-fee",
+          "name": "Monthly Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "national-account",
+          "name": "National Account Program",
+          "aliases": []
+        },
+        {
+          "item_id": "national-account-rebate",
+          "name": "National Account Rebate",
+          "aliases": [
+            "National Account Rebate (original)"
+          ]
+        },
+        {
+          "item_id": "new-replacement-coupon-books",
+          "name": "New/Replacement Coupon Books",
+          "aliases": []
+        },
+        {
+          "item_id": "new-replacement-driver-packet-coupon-book-issuance-fee",
+          "name": "New/Replacement Driver Packet/Coupon Book Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "non-national-account-processing-fee",
+          "name": "Non-National Account Processing Fee",
+          "aliases": [
+            "Non-National Account Processing Fee (for all non-National Account transactions, excluding Ford CSS dealerships)"
+          ]
+        },
+        {
+          "item_id": "out-stock-purchase-fee",
+          "name": "Out of Stock Purchase Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "out-network-repairs-markup",
+          "name": "Out-of-network repairs – markup",
+          "aliases": []
+        },
+        {
+          "item_id": "passenger-light-duty-vehicles",
+          "name": "PASSENGER/LIGHT-DUTY VEHICLES (under 10,001 GVWR)",
+          "aliases": []
+        },
+        {
+          "item_id": "packet-issuance-fee",
+          "name": "Packet Issuance Fee (physical)",
+          "aliases": [
+            "Packet Issuance Fee (electronic)"
+          ]
+        },
+        {
+          "item_id": "personal-mileage-reporting",
+          "name": "Personal Mileage Reporting",
+          "aliases": []
+        },
+        {
+          "item_id": "rental-vehicle-violation-administrative-fee",
+          "name": "Rental Vehicle Violation Administrative Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "reregistration",
+          "name": "Reregistration",
+          "aliases": []
+        },
+        {
+          "item_id": "state-change",
+          "name": "State Change",
+          "aliases": []
+        },
+        {
+          "item_id": "vehicle-maintenance-guide",
+          "name": "Vehicle Maintenance Guide",
+          "aliases": [
+            "Vehicle Maintenance Guide (replacement)"
+          ]
+        },
+        {
+          "item_id": "vehicle-recall-fee",
+          "name": "Vehicle Recall Program Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "fuel-management",
+      "name": "Fuel Management Program",
+      "aliases": [
+        "Fleet Card Program (Fuel)",
+        "Fuel Card",
+        "Fuel Management",
+        "MasterCard Fleet Card Program"
+      ],
+      "contract_count": 10,
+      "category": "Fuel",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "c-fuel-management-fee",
+          "name": "C Fuel Management Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "deactivation-fuel-cards",
+          "name": "Deactivation of Fuel Cards",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-card",
+          "name": "Fuel Card",
+          "aliases": [
+            "Fuel Card (only if lost, destroyed, or stolen)"
+          ]
+        },
+        {
+          "item_id": "fuel-management-fee",
+          "name": "Fuel Management Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-management-monthly-fee",
+          "name": "Fuel Management Program monthly fee",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-monitoring-option",
+          "name": "Fuel Monitoring Option",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-rebate",
+          "name": "Fuel Rebate",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-rebate-at-esso-stations",
+          "name": "Fuel rebate at Esso stations",
+          "aliases": []
+        },
+        {
+          "item_id": "new-card-issuance-fee",
+          "name": "New Card Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "new-fuel-card-issuance-fee",
+          "name": "New Fuel Card Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "new-replacement-fleet-card-issuance-fee",
+          "name": "New/Replacement Fleet Card Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "notification-suspicious-activity",
+          "name": "Notification of suspicious activity",
+          "aliases": []
+        },
+        {
+          "item_id": "p-new-fuel-card-issuance-fee",
+          "name": "P New Fuel Card Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "replacement-card-issuance-fee",
+          "name": "Replacement Card Issuance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "replacement-fuel-card-issuance-fee",
+          "name": "Replacement Fuel Card Issuance Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "toll-management",
+      "name": "Toll Management Program",
+      "aliases": [
+        "AutoTag Program",
+        "Toll Management",
+        "Toll Management Service",
+        "TollGuard"
+      ],
+      "contract_count": 9,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "autotag-fee",
+          "name": "AutoTag Fee (Other Vehicles)",
+          "aliases": [
+            "AutoTag Fee (registration renewal, state change, personal property tax payment, renewal refund application, duplicate or corrected title, assignment/re-title, other related services)",
+            "AutoTag Fee (registration renewal/ state change/ personal property tax payment/ renewal refund application/ duplicate or corrected title/ assignment/re-title/other related services)"
+          ]
+        },
+        {
+          "item_id": "donlenpass-interchange-fee",
+          "name": "DonlenPass Interchange Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "set-up-fee",
+          "name": "Set-up Fee (does not apply to Leased Vehicles)",
+          "aliases": []
+        },
+        {
+          "item_id": "title-retention-fee",
+          "name": "Title Retention Fee (does not apply to Leased Vehicles)",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-fee",
+          "name": "Toll Management Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-interchange-fee",
+          "name": "Toll Management Interchange Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-percentage-pass-through-expenses",
+          "name": "Toll Management Service – percentage of pass-through expenses",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-supplemental-charges-transponder",
+          "name": "Toll Management Supplemental Charges – Transponder",
+          "aliases": [
+            "Toll Management Supplemental Charges – Transponder (enrollment)"
+          ]
+        },
+        {
+          "item_id": "toll-management-supplemental-charges-transponder-monthly-fee",
+          "name": "Toll Management Supplemental Charges – Transponder monthly fee",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-supplemental-charges-transponder-transfer",
+          "name": "Toll Management Supplemental Charges – Transponder transfer",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-supplemental-charges-video-tolling",
+          "name": "Toll Management Supplemental Charges – Video Tolling",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-management-transponder-fee",
+          "name": "Toll Management Transponder Fee (for lost, stolen, or not returned transponders)",
+          "aliases": []
+        },
+        {
+          "item_id": "toll-transponder-activation-one-time-fee",
+          "name": "Toll transponder activation – one-time fee",
+          "aliases": []
+        },
+        {
+          "item_id": "tollguard-fee",
+          "name": "TollGuard Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "y-toll-management-interchange-fee",
+          "name": "Y Toll Management Interchange Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "y-tollguard-fee",
+          "name": "Y TollGuard Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "electric-vehicle",
+      "name": "Electric Vehicle Services Program",
+      "aliases": [
+        "Electric Vehicle Charger Acquisition",
+        "Electric Vehicle Home Charger Data Collection",
+        "Electric Vehicle Management Service",
+        "Residential Electric Vehicle Charger Acquisition and Installation"
+      ],
+      "contract_count": 9,
+      "category": "Electrification",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "administration-fee",
+          "name": "Administration Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "basic-installation-support",
+          "name": "Basic Installation Support",
+          "aliases": []
+        },
+        {
+          "item_id": "charger-removal",
+          "name": "Charger Removal",
+          "aliases": []
+        },
+        {
+          "item_id": "charging-renewal-fee",
+          "name": "Charging Program Renewal Fee (Year 2 +)",
+          "aliases": []
+        },
+        {
+          "item_id": "charging-set-up-fee",
+          "name": "Charging Program Set Up Fee (Year 1 Only)",
+          "aliases": []
+        },
+        {
+          "item_id": "charging-station-equipment",
+          "name": "Charging Station Equipment (ChargePoint Home Flex and Other)",
+          "aliases": []
+        },
+        {
+          "item_id": "charging-station-equipment-chargepoint-home-flex-other-charg",
+          "name": "Charging Station Equipment – ChargePoint Home Flex / Other Charging Station Equipment",
+          "aliases": []
+        },
+        {
+          "item_id": "concierge-installation-support",
+          "name": "Concierge Installation Support",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-cancellation-charges",
+          "name": "EV Charger Installation Service – Cancellation Charges",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-client-custom-portal",
+          "name": "EV Charger Installation Service – Client Custom Program Portal",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-installation-support-fee",
+          "name": "EV Charger Installation Service – Installation Support Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-standard-type-1",
+          "name": "EV Charger Installation – Standard Type 1 (Panel in Garage, Charger on Same Wall)",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-standard-type-2",
+          "name": "EV Charger Installation – Standard Type 2 (Panel in Garage, Charger Separate Wall, 1-Car Garage)",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-standard-type-3",
+          "name": "EV Charger Installation – Standard Type 3 (Panel in Garage, Charger Separate Wall, 2-Car Garage)",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-standard-type-4",
+          "name": "EV Charger Installation – Standard Type 4 (Panel in Garage, Charger Separate Wall, 3-Car Garage)",
+          "aliases": []
+        },
+        {
+          "item_id": "ev-charger-installation-standard-type-5",
+          "name": "EV Charger Installation – Standard Type 5 (Charger in Garage, Panel in Basement or Opposite Side, max 50' run)",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-charger-acquisition",
+          "name": "Electric Vehicle Charger Acquisition",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-charger-acquisition-per-vehicle-charger-fee",
+          "name": "Electric Vehicle Charger Acquisition – per vehicle charger fee",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-charging-reimbursement-management",
+          "name": "Electric Vehicle Charging Reimbursement Management",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-driver-assessment",
+          "name": "Electric Vehicle Driver Assessment",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-home-charger-data-collection",
+          "name": "Electric Vehicle Home Charger Data Collection",
+          "aliases": []
+        },
+        {
+          "item_id": "electric-vehicle-public-charging-billing-administration",
+          "name": "Electric Vehicle Public Charging Billing and Administration Services",
+          "aliases": []
+        },
+        {
+          "item_id": "installation-costs",
+          "name": "Installation Costs",
+          "aliases": []
+        },
+        {
+          "item_id": "installation-non-approval-fee",
+          "name": "Installation Non-Approval Fee (Installation Not Completed)",
+          "aliases": []
+        },
+        {
+          "item_id": "o-ev-charger-installation-cancellation-charges",
+          "name": "O EV Charger Installation Service Cancellation Charges",
+          "aliases": []
+        },
+        {
+          "item_id": "p-residential-electric-vehicle-charger-installation",
+          "name": "P Residential Electric Vehicle Charger Installation",
+          "aliases": []
+        },
+        {
+          "item_id": "permit-pricing",
+          "name": "Permit Pricing (Varies by City)",
+          "aliases": []
+        },
+        {
+          "item_id": "rfid-card",
+          "name": "RFID Card",
+          "aliases": []
+        },
+        {
+          "item_id": "replacement-rfid-card",
+          "name": "Replacement RFID Card",
+          "aliases": []
+        },
+        {
+          "item_id": "residential-electric-vehicle-charger-installation",
+          "name": "Residential Electric Vehicle Charger Installation",
+          "aliases": []
+        },
+        {
+          "item_id": "withdrawal-fee",
+          "name": "Withdrawal Fee (in lieu of Administration Fee)",
+          "aliases": [
+            "Withdrawal Fee"
+          ]
+        },
+        {
+          "item_id": "y-electric-vehicle-charger-acquisition",
+          "name": "Y Electric Vehicle Charger Acquisition",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "fleet",
+      "name": "Fleet Services Program",
+      "aliases": [
+        "Dedicated Fleet Administration Services",
+        "Fleet Administration"
+      ],
+      "contract_count": 8,
+      "category": "Administration",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "dedicated-fleet-administration-fee",
+          "name": "Dedicated Fleet Administration Service Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "driver-assistance",
+          "name": "Driver Assistance",
+          "aliases": []
+        },
+        {
+          "item_id": "fleet-administration",
+          "name": "Fleet Administration (includes Driver Assistance)",
+          "aliases": []
+        },
+        {
+          "item_id": "fleet-administration-1",
+          "name": "Fleet Administration (including Driver Assistance)1",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "connected-vehicle",
+      "name": "Connected Vehicle Services Program",
+      "aliases": [
+        "OneConnect Telematics",
+        "Telematics",
+        "Telematics Service",
+        "Telematics Services"
+      ],
+      "contract_count": 7,
+      "category": "Telematics",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "c-monthly-pro-plan",
+          "name": "C Monthly Service – Pro Plan",
+          "aliases": []
+        },
+        {
+          "item_id": "connected-vehicle-hardware",
+          "name": "Connected Vehicle Hardware",
+          "aliases": []
+        },
+        {
+          "item_id": "go9-device",
+          "name": "GO9 Device (new or replacement)",
+          "aliases": []
+        },
+        {
+          "item_id": "geotab-t-split-harness",
+          "name": "Geotab T-Split Harness (new or replacement)",
+          "aliases": []
+        },
+        {
+          "item_id": "geotab-units",
+          "name": "Geotab Units (as applicable)",
+          "aliases": []
+        },
+        {
+          "item_id": "installation",
+          "name": "Installation (if not Driver installed) (depends on location and vehicle make)",
+          "aliases": []
+        },
+        {
+          "item_id": "installation-fee",
+          "name": "Installation Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-go-plan",
+          "name": "Monthly Service – GO Plan (includes CV Device)",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-pro-plan",
+          "name": "Monthly Service – Pro Plan",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-pro-plus-keyless-plan",
+          "name": "Monthly Service – Pro Plus Keyless Plan",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-basic-plan-data-only",
+          "name": "Monthly Service: Basic Plan – Data Only",
+          "aliases": []
+        },
+        {
+          "item_id": "o-installation",
+          "name": "O Installation (if not Driver installed) (depends on location and vehicle make)",
+          "aliases": []
+        },
+        {
+          "item_id": "optional-t-harness",
+          "name": "Optional T-Harness",
+          "aliases": []
+        },
+        {
+          "item_id": "per-unit-minimum-term",
+          "name": "Per Unit Minimum Term",
+          "aliases": []
+        },
+        {
+          "item_id": "pro-plan",
+          "name": "Pro Plan Service",
+          "aliases": []
+        },
+        {
+          "item_id": "shipping",
+          "name": "Shipping (outbound and inbound)",
+          "aliases": []
+        },
+        {
+          "item_id": "suspend-mode",
+          "name": "Suspend Mode Service",
+          "aliases": []
+        },
+        {
+          "item_id": "taxes-tariffs",
+          "name": "Taxes and Tariffs",
+          "aliases": []
+        },
+        {
+          "item_id": "telematics-cv-devices",
+          "name": "Telematics CV Devices (as applicable)",
+          "aliases": []
+        },
+        {
+          "item_id": "telematics-hardware-basic",
+          "name": "Telematics Hardware – Basic",
+          "aliases": []
+        },
+        {
+          "item_id": "telematics-incentive-payment",
+          "name": "Telematics Incentive Payment",
+          "aliases": []
+        },
+        {
+          "item_id": "telematics-installation",
+          "name": "Telematics Installation (if not driver installed)",
+          "aliases": []
+        },
+        {
+          "item_id": "telematics-unit-reactivation-fee",
+          "name": "Telematics unit reactivation fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "registration-express",
+      "name": "Registration Express Program",
+      "aliases": [],
+      "contract_count": 6,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "additional-fees",
+          "name": "Additional Program Fees (subject to change)",
+          "aliases": [
+            "Additional Program Fees"
+          ]
+        },
+        {
+          "item_id": "duplicate-titles",
+          "name": "Duplicate Titles",
+          "aliases": [
+            "Duplicate Titles (for Vehicles not enrolled in Registration Express Program)"
+          ]
+        },
+        {
+          "item_id": "duplicate-titles-or-other-ownership-documentation",
+          "name": "Duplicate Titles or other Ownership Documentation",
+          "aliases": []
+        },
+        {
+          "item_id": "license-check",
+          "name": "License Check",
+          "aliases": [
+            "License Check (per Walmart’s request)"
+          ]
+        },
+        {
+          "item_id": "ownership-transfers",
+          "name": "Ownership Transfers",
+          "aliases": []
+        },
+        {
+          "item_id": "registration-amendments-name-change-lessee-transfer-buyouts",
+          "name": "Registration Amendments/Name Change/Lessee Transfer/Buyouts",
+          "aliases": []
+        },
+        {
+          "item_id": "registration-express-other-vehicles",
+          "name": "Registration Express Program – other vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "registration-express-vehicles-leased-from-supplier-s-affilia",
+          "name": "Registration Express Program – vehicles leased from Supplier's affiliate",
+          "aliases": []
+        },
+        {
+          "item_id": "title-maintenance",
+          "name": "Title Maintenance (for Other Vehicles)",
+          "aliases": []
+        },
+        {
+          "item_id": "title-maintenance-fee",
+          "name": "Title Maintenance Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "insurance-card",
+      "name": "Insurance Card Program",
+      "aliases": [
+        "Insurance Card Administration Program",
+        "Insurance Card Distribution",
+        "Insurance Card Management"
+      ],
+      "contract_count": 6,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "insurance-card-distribution",
+          "name": "Insurance Card Distribution",
+          "aliases": []
+        },
+        {
+          "item_id": "insurance-card-management",
+          "name": "Insurance Card Management",
+          "aliases": []
+        },
+        {
+          "item_id": "insurance-card-fee",
+          "name": "Insurance Card Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "notification-fee",
+          "name": "Notification Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "safety-first-online-training",
+      "name": "Safety First Online Training Program",
+      "aliases": [
+        "Behind the Wheel Training",
+        "Safety First Online Training Services"
+      ],
+      "contract_count": 6,
+      "category": "Safety",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "behind-wheel-training",
+          "name": "Behind-the-Wheel Training",
+          "aliases": []
+        },
+        {
+          "item_id": "custom-test-module-development",
+          "name": "Custom test module development",
+          "aliases": []
+        },
+        {
+          "item_id": "modules-in-languages-other-than-english",
+          "name": "Modules in languages other than English",
+          "aliases": []
+        },
+        {
+          "item_id": "online-safety-training",
+          "name": "Online Safety Training (Standard Modules)",
+          "aliases": [
+            "Online Safety Training (Custom Safety Policy Module)",
+            "Online Safety Training (Hazard Perception Module)"
+          ]
+        },
+        {
+          "item_id": "online-safety-training-2",
+          "name": "Online Safety Training (The Essentials of Safe Driving Bundle)2",
+          "aliases": []
+        },
+        {
+          "item_id": "online-safety-training-custom-safety-policy-module",
+          "name": "Online Safety Training – Custom Safety Policy Module",
+          "aliases": []
+        },
+        {
+          "item_id": "online-safety-training-hazard-perception-module",
+          "name": "Online Safety Training – Hazard Perception Module",
+          "aliases": []
+        },
+        {
+          "item_id": "online-safety-training-standard-modules",
+          "name": "Online Safety Training – Standard Modules",
+          "aliases": []
+        },
+        {
+          "item_id": "online-safety-training-custom-module-in-additional-language",
+          "name": "Online Safety Training – custom module in additional language",
+          "aliases": []
+        },
+        {
+          "item_id": "safety-first-online-training",
+          "name": "Safety First Online Training Program",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "collision-management",
+      "name": "Collision Management Program",
+      "aliases": [
+        "Accident Management Program",
+        "Collision Management"
+      ],
+      "contract_count": 6,
+      "category": "Maintenance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "accident-reporting",
+          "name": "Accident Reporting",
+          "aliases": []
+        },
+        {
+          "item_id": "administration-fee-for-use-non-network-shop",
+          "name": "Administration Fee for use of non-network shop",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee",
+          "name": "Administrative Fee (Non-Network Vendor transactions)",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-for-non-network-vendor-transactions",
+          "name": "Administrative Fee for Non-Network Vendor transactions",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-for-non-network-vendors",
+          "name": "Administrative Fee for non-network vendors",
+          "aliases": []
+        },
+        {
+          "item_id": "c-independent-appraisal",
+          "name": "C Independent Appraisal",
+          "aliases": []
+        },
+        {
+          "item_id": "claim-loss-notice",
+          "name": "Claim Loss Notice",
+          "aliases": []
+        },
+        {
+          "item_id": "claim-loss-notice-fee",
+          "name": "Claim Loss Notice Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "collision-management-per-incident-fee",
+          "name": "Collision Management Program – per incident fee",
+          "aliases": []
+        },
+        {
+          "item_id": "collision-repair",
+          "name": "Collision Repair Services",
+          "aliases": [
+            "Collision Repair Program (per repair, includes Accident Report)"
+          ]
+        },
+        {
+          "item_id": "independent-appraisal",
+          "name": "Independent Appraisal",
+          "aliases": []
+        },
+        {
+          "item_id": "independent-appraiser",
+          "name": "Independent Appraiser (estimates over $2,500)",
+          "aliases": []
+        },
+        {
+          "item_id": "litigation",
+          "name": "Litigation (Subrogation Waived)",
+          "aliases": []
+        },
+        {
+          "item_id": "out-network-collision-repairs-markup",
+          "name": "Out-of-network collision repairs – markup",
+          "aliases": []
+        },
+        {
+          "item_id": "p-recovery-reimbursement",
+          "name": "P Recovery Reimbursement (“subrogation”)",
+          "aliases": []
+        },
+        {
+          "item_id": "recovery-reimbursement",
+          "name": "Recovery Reimbursement (“subrogation”)",
+          "aliases": []
+        },
+        {
+          "item_id": "salvage",
+          "name": "Salvage",
+          "aliases": []
+        },
+        {
+          "item_id": "subrogation",
+          "name": "Subrogation",
+          "aliases": []
+        },
+        {
+          "item_id": "subrogation-recovery-share",
+          "name": "Subrogation recovery share",
+          "aliases": []
+        },
+        {
+          "item_id": "third-party-vehicle-damage-claims-recovery-fee-per-claim",
+          "name": "Third-Party Vehicle Damage Claims – Recovery fee per claim",
+          "aliases": []
+        },
+        {
+          "item_id": "third-party-vehicle-damage-claims-recovery-fee-per-claim-if-",
+          "name": "Third-Party Vehicle Damage Claims – Recovery fee per claim if counsel required",
+          "aliases": []
+        },
+        {
+          "item_id": "y-recovery-reimbursement",
+          "name": "Y Recovery Reimbursement (“subrogation”)",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "revenue-sharing",
+      "name": "Revenue Sharing Program",
+      "aliases": [
+        "Fourth Loyalty Incentive",
+        "Loyalty Bonus",
+        "Order Bonus"
+      ],
+      "contract_count": 6,
+      "category": "Fuel",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "collision-repair-discount",
+          "name": "Collision Repair discount",
+          "aliases": []
+        },
+        {
+          "item_id": "fourth-loyalty-incentive-payment",
+          "name": "Fourth Loyalty Incentive Payment",
+          "aliases": []
+        },
+        {
+          "item_id": "fuel-rebate",
+          "name": "Fuel Rebate",
+          "aliases": []
+        },
+        {
+          "item_id": "loyalty-bonus",
+          "name": "Loyalty Bonus",
+          "aliases": []
+        },
+        {
+          "item_id": "order-bonus-per-bonus-vehicle",
+          "name": "Order Bonus per Bonus Vehicle",
+          "aliases": []
+        },
+        {
+          "item_id": "rental-rebate",
+          "name": "Rental Rebate",
+          "aliases": []
+        },
+        {
+          "item_id": "national-account-vendor-discount",
+          "name": "Services – National Account Vendor discount",
+          "aliases": []
+        },
+        {
+          "item_id": "tires-national-account-vendor-discount",
+          "name": "Tires – National Account Vendor discount",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "vehicle-lease",
+      "name": "Vehicle Lease Program",
+      "aliases": [
+        "Master Motor Vehicle Lease Agreement",
+        "WLT Capital Lease",
+        "WLT Operating Lease"
+      ],
+      "contract_count": 5,
+      "category": "Lease",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "administrative-fee",
+          "name": "Administrative Fee (Fixed Rate Index)",
+          "aliases": [
+            "Administrative Fee (SOFR Floating Rate)"
+          ]
+        },
+        {
+          "item_id": "administrative-fee-component-monthly-rent-applicable-percent",
+          "name": "Administrative Fee Component of Monthly Rent – Applicable Percentage",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-electric-passenger-vehicles-light-duty-tr",
+          "name": "Administrative Fee – Electric Passenger Vehicles and Light-Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-electric-vehicles",
+          "name": "Administrative Fee – Electric Vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-fixed-rate-index",
+          "name": "Administrative Fee – Fixed Rate Index",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-non-electric-passenger-vehicles-light-dut",
+          "name": "Administrative Fee – Non-Electric Passenger Vehicles and Light-Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-non-electric-vehicles",
+          "name": "Administrative Fee – Non-Electric Vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "administrative-fee-sofr-floating-rate",
+          "name": "Administrative Fee – SOFR Floating Rate",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rate-electric",
+          "name": "Amortization rate – Electric (72 months)",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rate-electric-vehicles",
+          "name": "Amortization rate – Electric Vehicles (72 months)",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rate-non-electric",
+          "name": "Amortization rate – Non-Electric (60 months)",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rate-non-electric-vehicles",
+          "name": "Amortization rate – Non-Electric Vehicles (60 months)",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rates-fixed-rate-index",
+          "name": "Amortization rates – Fixed Rate Index",
+          "aliases": []
+        },
+        {
+          "item_id": "amortization-rates-sofr-floating-rate",
+          "name": "Amortization rates – SOFR Floating Rate",
+          "aliases": []
+        },
+        {
+          "item_id": "base-capitalized-cost-dealer-order-passenger-vehicles-light-",
+          "name": "Base Capitalized Cost – Dealer Order Passenger Vehicles/Light Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "base-capitalized-cost-dealer-order-via-midway-ford-passenger",
+          "name": "Base Capitalized Cost – Dealer Order via Midway Ford Passenger Vehicles/Light Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "base-capitalized-cost-donlen-factory-order-domestic-passenge",
+          "name": "Base Capitalized Cost – Donlen-Factory Order Domestic Passenger Vehicles/Light Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "base-capitalized-cost-donlen-factory-order-other-passenger-v",
+          "name": "Base Capitalized Cost – Donlen-Factory Order Other Passenger Vehicles/Light Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "financing-rate-surcharge-vehicle-not-enrolled-in-maintenance",
+          "name": "Financing Rate Surcharge – Vehicle not enrolled in maintenance services",
+          "aliases": []
+        },
+        {
+          "item_id": "fully-amortized-vehicle-monthly-rental-charge",
+          "name": "Fully amortized vehicle monthly rental charge (Fixed Rate)",
+          "aliases": [
+            "Fully amortized vehicle monthly rental charge",
+            "Fully amortized vehicle monthly rental charge (SOFR)"
+          ]
+        },
+        {
+          "item_id": "fully-amortized-vehicle-monthly-rental-charge-electric-vehic",
+          "name": "Fully amortized vehicle monthly rental charge – Electric Vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-electric",
+          "name": "Interest surcharge – Electric (SOFR floating)",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-electric-vehicles",
+          "name": "Interest surcharge – Electric Vehicles (SOFR)",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-fixed-rate-index",
+          "name": "Interest surcharge – Fixed Rate Index",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-non-electric",
+          "name": "Interest surcharge – Non-Electric (SOFR floating)",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-non-electric-vehicles",
+          "name": "Interest surcharge – Non-Electric Vehicles (SOFR)",
+          "aliases": []
+        },
+        {
+          "item_id": "interest-surcharge-sofr-floating-rate",
+          "name": "Interest surcharge – SOFR Floating Rate",
+          "aliases": []
+        },
+        {
+          "item_id": "interim-interest",
+          "name": "Interim Interest",
+          "aliases": []
+        },
+        {
+          "item_id": "minimum-monthly-rent",
+          "name": "Minimum Monthly Rent",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-rental-charge-fully-amortized-electric-leased-vehicl",
+          "name": "Monthly rental charge – fully amortized Electric Leased Vehicles",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-rental-charge-fully-amortized-leased-vehicles",
+          "name": "Monthly rental charge – fully amortized Leased Vehicles (Fixed Rate)",
+          "aliases": [
+            "Monthly rental charge – fully amortized Leased Vehicles",
+            "Monthly rental charge – fully amortized Leased Vehicles (SOFR)"
+          ]
+        },
+        {
+          "item_id": "upfitting-modifications",
+          "name": "Upfitting/Modifications",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "mileage-certification-logging",
+      "name": "Mileage Certification And Logging Program",
+      "aliases": [
+        "Mileage Certification / Mileage and Logging / Driver Tax Compliance Program"
+      ],
+      "contract_count": 4,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "mileage-certification-logging-fee",
+          "name": "Mileage Certification and Logging Fee (including notifications)",
+          "aliases": [
+            "Mileage Certification and Logging Fee",
+            "Mileage Certification and Logging Fee (including PUSH notifications)"
+          ]
+        }
+      ]
+    },
+    {
+      "program_id": "violation-management",
+      "name": "Violation Management Program",
+      "aliases": [
+        "Violations Follow-Up Service",
+        "Violations Management"
+      ],
+      "contract_count": 4,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "violation-follow-up-fee",
+          "name": "Violation Follow-Up Fee (charged to applicable Driver)",
+          "aliases": []
+        },
+        {
+          "item_id": "violation-forwarding-fee",
+          "name": "Violation Forwarding Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "violation-processing-fee",
+          "name": "Violation Processing Fee",
+          "aliases": [
+            "Violation Processing Fee (payment of violation)"
+          ]
+        },
+        {
+          "item_id": "violations-follow-up-per-violation-reimbursed-by-driver",
+          "name": "Violations Follow-Up Service – per violation reimbursed by driver",
+          "aliases": []
+        },
+        {
+          "item_id": "violations-management-driver-enrollment-without-email-addres",
+          "name": "Violations Management Driver Enrollment – Without email address",
+          "aliases": []
+        },
+        {
+          "item_id": "violations-management-driver-late-payment-admin-fee",
+          "name": "Violations Management Driver Late Payment Admin Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "violations-management-driver-non-driver-violation-administra",
+          "name": "Violations Management Driver and Non-Driver Violation Administration Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "remarketing",
+      "name": "Remarketing Program",
+      "aliases": [
+        "Vehicle Remarketing",
+        "Vehicle Remarketing (Company-owned vehicles)"
+      ],
+      "contract_count": 4,
+      "category": "Lifecycle",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "administration-fee",
+          "name": "Administration Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "selling-fee-for-vehicle-remarketing",
+          "name": "Selling fee for vehicle remarketing",
+          "aliases": []
+        },
+        {
+          "item_id": "vehicle-remarketing",
+          "name": "Vehicle Remarketing (Company-owned vehicles)",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "mvr-point",
+      "name": "MVR Point Program",
+      "aliases": [
+        "Motor Vehicle Record (MVR) Point Program"
+      ],
+      "contract_count": 3,
+      "category": "Safety",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "alberta-mvr-data-coordination",
+          "name": "Alberta MVR Data Coordination",
+          "aliases": []
+        },
+        {
+          "item_id": "mvr-point-fee",
+          "name": "MVR Point Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "mvr-point-additional-fee-per-record",
+          "name": "MVR Point Program – additional fee per record",
+          "aliases": []
+        },
+        {
+          "item_id": "mvr",
+          "name": "MVR Program (excludes Alberta)",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "data-management",
+      "name": "Data Management Services",
+      "aliases": [
+        "Business and Personal Use Report Program"
+      ],
+      "contract_count": 3,
+      "category": "Administration",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "data-management-fee",
+          "name": "Data Management Services Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "rental",
+      "name": "Rental Program",
+      "aliases": [
+        "Rent-A-Car Program"
+      ],
+      "contract_count": 3,
+      "category": "Maintenance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "rental",
+          "name": "Rental Program",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "vehicle-purchase",
+      "name": "Vehicle Purchase Program",
+      "aliases": [],
+      "contract_count": 2,
+      "category": "Lifecycle",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "active-vehicle-posting",
+          "name": "Active Vehicle Posting",
+          "aliases": []
+        },
+        {
+          "item_id": "dealer-order-cars-light-duty-trucks",
+          "name": "Dealer Order – Cars and Light-Duty Trucks (Vendor located)",
+          "aliases": [
+            "Dealer Order – Cars and Light-Duty Trucks (Walmart located)"
+          ]
+        },
+        {
+          "item_id": "dealer-order-heavy-duty-trucks",
+          "name": "Dealer Order – Heavy-Duty Trucks",
+          "aliases": []
+        },
+        {
+          "item_id": "factory-orders",
+          "name": "Factory Orders",
+          "aliases": []
+        },
+        {
+          "item_id": "o-plus-upfitting-modifications",
+          "name": "O PLUS upfitting/modifications",
+          "aliases": []
+        },
+        {
+          "item_id": "plus-upfitting-modifications",
+          "name": "PLUS upfitting/modifications",
+          "aliases": []
+        },
+        {
+          "item_id": "remarketing-fee",
+          "name": "Remarketing Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "motor-vehicle-record",
+      "name": "Motor Vehicle Record (MVR) Program",
+      "aliases": [],
+      "contract_count": 2,
+      "category": "Safety",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "mvr-fee",
+          "name": "MVR Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "mvr-monitoring",
+      "name": "MVR Monitoring Program",
+      "aliases": [],
+      "contract_count": 2,
+      "category": "Safety",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "mvr-monitoring-fee",
+          "name": "MVR Monitoring Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "national-account",
+      "name": "National Account Program",
+      "aliases": [
+        "National Account Purchase Card Program"
+      ],
+      "contract_count": 2,
+      "category": "Administration",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "national-account",
+          "name": "National Account Program",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "executive",
+      "name": "Executive Services Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": "Driver",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "executive-monthly-fee",
+          "name": "Executive Services Monthly Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "executive-order-fee",
+          "name": "Executive Services Order Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "recall-data",
+      "name": "Recall Data Service Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": "Compliance",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "recall-fee",
+          "name": "Recall Fee",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "driver-reimbursement",
+      "name": "Driver Reimbursement Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": "Driver",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "annual-compliance-fee",
+          "name": "Annual Compliance Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "monthly-fee",
+          "name": "Monthly Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "payment-via-direct-deposit-option",
+          "name": "Payment via Direct Deposit Option",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "transportation-drive-away",
+      "name": "Transportation/Drive-Away Program",
+      "aliases": [
+        "DriveAway Program"
+      ],
+      "contract_count": 1,
+      "category": "Lifecycle",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "transportation-fee",
+          "name": "Transportation Fee (currently)",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "pool-checkout",
+      "name": "Pool Checkout Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": "Driver",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "keyless-entry-hardware-installation-activation-fee",
+          "name": "Keyless Entry Hardware Installation/Activation Fee*",
+          "aliases": []
+        },
+        {
+          "item_id": "keyless-entry-hardware",
+          "name": "Keyless Entry Hardware*",
+          "aliases": []
+        },
+        {
+          "item_id": "kiosk-fee",
+          "name": "Kiosk Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "pool-checkout-fee",
+          "name": "Pool Checkout Program Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "pool-checkout-tier-2-fee",
+          "name": "Pool Checkout Tier 2 Program Fee (software only)",
+          "aliases": []
+        },
+        {
+          "item_id": "pool-checkout-tier-3-fee",
+          "name": "Pool Checkout Tier 3 Program Fee (key management, whether kiosk or keyless)*",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "mvr-authorization-storage",
+      "name": "MVR Authorization And Storage Program",
+      "aliases": [
+        "MVR Authorization and Storage Service"
+      ],
+      "contract_count": 1,
+      "category": "Safety",
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "mvr-authorization-storage-fee",
+          "name": "MVR Authorization and Storage Fee",
+          "aliases": []
+        },
+        {
+          "item_id": "mvr-authorization-storage-additional-fee-per-record",
+          "name": "MVR Authorization and Storage Service – additional fee per record",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "fourth-amendment-bonus",
+      "name": "Fourth Amendment – Bonus",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "additional-bonus",
+          "name": "Additional Bonus (≥400 Bonus Vehicles)",
+          "aliases": []
+        },
+        {
+          "item_id": "initial-bonus",
+          "name": "Initial Bonus",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "push-fuel-management",
+      "name": "PUSH – Fuel Management",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": []
+    },
+    {
+      "program_id": "transportation-driveaway",
+      "name": "Transportation and DriveAway Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": []
+    },
+    {
+      "program_id": "autotag-for-vehicles-leased-from-donlen-or-its-affiliate",
+      "name": "AutoTag Program – For Vehicles leased from Donlen or its affiliate",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": []
+    },
+    {
+      "program_id": "electronic-database-report-through-fleetweb",
+      "name": "Electronic Database Report Program through FleetWeb",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": []
+    },
+    {
+      "program_id": "push-preventive-maintenance",
+      "name": "PUSH – Preventive Maintenance",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": []
+    },
+    {
+      "program_id": "second-amendment-bonus",
+      "name": "Second Amendment – Bonus",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "additional-bonus",
+          "name": "Additional Bonus (≥400 Bonus Vehicles)",
+          "aliases": []
+        },
+        {
+          "item_id": "initial-bonus",
+          "name": "Initial Bonus",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "extension-amendment-bonus",
+      "name": "Extension Amendment – Bonus",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "bonus",
+          "name": "Bonus (<300 Bonus Vehicles average per Eligible Calendar Year)",
+          "aliases": [
+            "Bonus (≥300 but <400 Bonus Vehicles average per Eligible Calendar Year)",
+            "Bonus (≥400 Bonus Vehicles average per Eligible Calendar Year)"
+          ]
+        }
+      ]
+    },
+    {
+      "program_id": "extension-amendment-supplemental-bonus",
+      "name": "Extension Amendment – Supplemental Bonus",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "supplemental-bonus-per-installment",
+          "name": "Supplemental Bonus – Per Installment",
+          "aliases": []
+        },
+        {
+          "item_id": "supplemental-bonus-total",
+          "name": "Supplemental Bonus – Total",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "late-payment-charge",
+      "name": "Late Payment Charge",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "late-charge-on-past-due-amounts",
+          "name": "Late charge on past due amounts",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "mileage-certification-mileage-logging-driver-tax-compliance-",
+      "name": "Mileage Certification / Mileage and Logging / Driver Tax Compliance Analytics",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "mileage-certification-mileage-logging-driver-tax-compliance-",
+          "name": "Mileage Certification / Mileage and Logging / Driver Tax Compliance Analytics",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "collision-repair",
+      "name": "Collision Repair Services",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "accident-reporting",
+          "name": "Accident Reporting",
+          "aliases": []
+        },
+        {
+          "item_id": "collision-repair",
+          "name": "Collision Repair Services",
+          "aliases": []
+        },
+        {
+          "item_id": "litigation",
+          "name": "Litigation (Subrogation Waived)",
+          "aliases": []
+        },
+        {
+          "item_id": "salvage",
+          "name": "Salvage",
+          "aliases": []
+        },
+        {
+          "item_id": "subrogation",
+          "name": "Subrogation",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "strategic-team-insurance-card-management-vehicle-remarketing",
+      "name": "Strategic Programs Team, Insurance Card Management, Vehicle Remarketing, and Safety First Online Training Services",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "insurance-card-management",
+          "name": "Insurance Card Management",
+          "aliases": []
+        },
+        {
+          "item_id": "safety-first-online-training",
+          "name": "Safety First Online Training Program",
+          "aliases": []
+        },
+        {
+          "item_id": "strategic-team",
+          "name": "Strategic Programs Team",
+          "aliases": []
+        },
+        {
+          "item_id": "vehicle-remarketing",
+          "name": "Vehicle Remarketing (Company-owned vehicles)",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "emergency-roadside",
+      "name": "Emergency Roadside Service",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "emergency-roadside",
+          "name": "Emergency Roadside Service",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "glass-repair-replacement",
+      "name": "Glass Repair/Replacement Program",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "glass-repair-replacement",
+          "name": "Glass Repair/Replacement Program",
+          "aliases": []
+        }
+      ]
+    },
+    {
+      "program_id": "compliance-management",
+      "name": "Compliance Management",
+      "aliases": [],
+      "contract_count": 1,
+      "category": null,
+      "source": "derived",
+      "status": "ACTIVE",
+      "items": [
+        {
+          "item_id": "duplicate-registration",
+          "name": "Duplicate Registration",
+          "aliases": []
+        },
+        {
+          "item_id": "duplicate-title",
+          "name": "Duplicate Title",
+          "aliases": []
+        },
+        {
+          "item_id": "reregistration",
+          "name": "Reregistration",
+          "aliases": []
+        },
+        {
+          "item_id": "state-change",
+          "name": "State Change",
+          "aliases": []
+        }
+      ]
+    }
+  ]
+}

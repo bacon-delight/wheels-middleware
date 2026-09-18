@@ -52,14 +52,34 @@ def fee_line(fi: dict[str, Any]) -> str:
     return " · ".join(parts)
 
 
-def _service_terms(fields) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for f in fields:
-        if not f.elected:
+def _priced_terms(terms) -> dict[str, str]:
+    """What each program costs, as one readable line per program.
+
+    Pricing only. A re-upload diff exists to answer whether the money changed, and threading a
+    definition that gained a comma through it would bury the answer.
+    """
+    out: dict[str, list[str]] = {}
+    for t in terms:
+        if t.category != "pricing" or t.superseded:
             continue
-        lines = [fee_line(fi) for fi in f.fee_items]
-        out[f.service] = " ; ".join(x for x in lines if x) or "(no fee terms)"
-    return out
+        record = t.record or {}
+        program = record.get("program") or t.subtitle or t.title
+        line = fee_line(
+            {
+                "amount": record.get("amount"),
+                "rate_pct": record.get("rate_pct"),
+                "fee_type": record.get("fee_type"),
+                "unit_basis": record.get("frequency"),
+                "minimum": record.get("minimum"),
+                "tier_bands": record.get("tier_bands"),
+            }
+        )
+        label = record.get("item") or "program"
+        out.setdefault(program, []).append(f"{label}: {line}" if line else label)
+    return {
+        program: " ; ".join(sorted(lines)) or "(no fee terms)"
+        for program, lines in out.items()
+    }
 
 
 # ============================ change verification ============================
@@ -115,8 +135,8 @@ def _changes_and_versions(repo: Repository, sub: Submission) -> tuple[list[dict]
         sig_parts.append(f"{did}:{cur}")
         if cur < 2:
             continue
-        new_terms = _service_terms(repo.list_fields(eid, did, cur))
-        old_terms = _service_terms(repo.list_fields(eid, did, cur - 1))
+        new_terms = _priced_terms(repo.list_terms(eid, did, cur, "pricing"))
+        old_terms = _priced_terms(repo.list_terms(eid, did, cur - 1, "pricing"))
         for svc in sorted(set(new_terms) | set(old_terms)):
             before = old_terms.get(svc, "(not present)")
             after = new_terms.get(svc, "(not present)")

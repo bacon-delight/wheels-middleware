@@ -386,7 +386,7 @@ def test_removing_an_agreement_takes_its_terms_and_scope_with_it(ctx):  # noqa: 
     """A wrong file is removable outright: leaving its extracted terms behind would keep them
     in the billing config for an agreement nobody can see."""
     client, repo, state = ctx
-    from app.store.models import ReviewField
+    from .pricing_helpers import seed_pricing
 
     cid = _customer(client)
     r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
@@ -397,11 +397,8 @@ def test_removing_an_agreement_takes_its_terms_and_scope_with_it(ctx):  # noqa: 
     wrong = client.post(f"/engagements/{eid}/documents:presign",
                         json={"doc_type": "MSA", "filename": "wrong.pdf", "submission_id": sid},
                         ).json()["document_id"]
-    repo.put_field(ReviewField(
-        engagement_id=eid, document_id=wrong, version=1, field_id="f1", service="Fuel",
-        elected=True, confidence=0.9, needs_review=False,
-        fee_items=[{"amount": 4.0, "unit_basis": "per_vehicle_per_month"}], citations=[],
-    ))
+    seed_pricing(repo, eid, wrong, 1, program="Fuel Management Program",
+                 item="Monthly Program Fee", amount=4.0)
     assert client.get(f"/engagements/{eid}").json()["engagement"]["scope"] == "LEASE_AND_SERVICE"
 
     gone = client.delete(f"/engagements/{eid}/documents/{wrong}")

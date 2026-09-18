@@ -39,12 +39,30 @@ class Word:
 
 
 @dataclass
+class TableParse:
+    """A table detected on a page.
+
+    Worth its own structure because in a pricing schedule the column an amount sits under IS
+    its frequency: the same "$15.00" means a monthly per-vehicle charge under one heading and a
+    one-off fee under the next. Flattened page text loses that, and it is the single most
+    valuable thing a table tells us.
+
+    `rows` keeps empty cells as empty strings for exactly that reason.
+    """
+
+    bbox: BBox
+    rows: list[list[str]] = field(default_factory=list)
+    header: list[str] = field(default_factory=list)
+
+
+@dataclass
 class PageParse:
     page_number: int  # 1-based
     width: float  # points, native page size
     height: float
     text: str  # full page text in reading order
     words: list[Word] = field(default_factory=list)
+    tables: list[TableParse] = field(default_factory=list)
     render_key: str | None = None  # S3 key / local path of the page PNG, when rendered
 
 
@@ -71,7 +89,7 @@ class OCREngine(ABC):
     name: str
 
     @abstractmethod
-    def parse(self, source: Source) -> DocumentParse:
+    def parse(self, source: Source, *, tables: bool = False) -> DocumentParse:
         """Parse a PDF into pages with normalized word geometry."""
 
     @abstractmethod
