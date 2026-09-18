@@ -287,3 +287,38 @@ def test_unclassified_documents_do_not_supersede_each_other(ctx):  # noqa: F811
     standings = {d["filename"]: d["standing"]
                  for d in client.get(f"/engagements/{eid}").json()["documents"]}
     assert set(standings.values()) == {"CURRENT"}
+
+
+def test_a_submission_advances_even_when_no_document_could_be_typed(ctx):  # noqa: F811
+    """The stall this guards against: an engagement whose only upload is a statement of work
+    finished its pipeline but never left EXTRACTING, because the guard counted typed slots and
+    an unidentifiable document never fills one."""
+    client, repo, state = ctx
+    from app.lifecycle.submission_state import SubmissionStatus
+    from app.pipeline.extract import _all_documents_extracted
+    from app.store.models import DocumentVersion
+    from app.store.repository import utcnow
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"filename": "SOW.pdf", "submission_id": sid}).json()["document_id"]
+
+    # Parsing ran and found nothing it could identify, so no slot was ever filled.
+    assert repo.list_submissions(eid)[0].docs() == {}
+    assert not _all_documents_extracted(repo, eid), "not extracted yet"
+
+    repo.put_document_version(DocumentVersion(
+        engagement_id=eid, document_id=did, version=1, s3_key="k",
+        status="extracted", uploaded_at=utcnow(),
+    ))
+    assert _all_documents_extracted(repo, eid), "the pipeline is done, so it must advance"
+
+    repo.update_submission_status(
+        eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value
+    )
+    repo.update_submission_status(
+        eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value
+    )
+    assert client.get(f"/engagements/{eid}").json()["submission"]["status"] == "IN_UNDERWRITING"

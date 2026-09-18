@@ -9,23 +9,29 @@ from ..config import get_settings
 from ..extraction.service import extract_contract
 from ..messaging import emit_lifecycle_event
 from ..objects import extraction_key
-from ..store.models import ReviewField
+from ..store.models import DocumentStanding, ReviewField
 from ..store.repository import ConflictError, Repository, new_id
 from ..store.s3 import S3Store
 
 log = logging.getLogger(__name__)
 
 
-def _all_documents_extracted(repo, eid: str, sub) -> bool:
-    """True once every document slot on the submission has a fully extracted current version."""
-    slots = sub.docs().values()
-    if not slots:
+def _all_documents_extracted(repo, eid: str) -> bool:
+    """True once every document in force has a fully extracted current version.
+
+    This counts the engagement's documents, not the submission's typed slots. A document that
+    parsing could not identify as a lease or service agreement never enters a slot, so keying
+    off slots left such a submission stuck in EXTRACTING forever — the pipeline finished but
+    nothing was there to satisfy the guard.
+    """
+    documents = [
+        d for d in repo.list_documents(eid)
+        if d.standing != DocumentStanding.SUPERSEDED.value
+    ]
+    if not documents:
         return False
-    for document_id in slots:
-        doc = repo.get_document(eid, document_id)
-        if doc is None:
-            return False
-        version = repo.get_document_version(eid, document_id, doc.current_version)
+    for doc in documents:
+        version = repo.get_document_version(eid, doc.document_id, doc.current_version)
         if version is None or version.status != "extracted":
             return False
     return True
@@ -79,12 +85,9 @@ def _process(body: dict) -> None:
             notes="Covers: " + ", ".join(bf.get("covers_services", [])),
         )
 
-    # Advance only once every document on the submission has been extracted. With a variable
-    # agreement set, "first one wins" would push a two-agreement engagement into underwriting
-    # with half its terms missing. The guard keys off the documents actually attached, not the
-    # scope's required set, because submit-for-processing already refused to start without them.
-    sub = repo.get_submission(eid, sid)
-    if sub is not None and _all_documents_extracted(repo, eid, sub):
+    # Advance only once every document in force has been extracted. "First one wins" would push
+    # a two-agreement engagement into underwriting with half its terms missing.
+    if _all_documents_extracted(repo, eid):
         try:
             repo.update_submission_status(eid, sid, "EXTRACTING", "IN_UNDERWRITING")
             emit_lifecycle_event(
