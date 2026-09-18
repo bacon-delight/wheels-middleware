@@ -9,6 +9,7 @@ from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require
 from ..auth.principal import Principal
 from ..billing.fleet import effective_fleet_size, fleet_source, is_locked
 from ..lifecycle.submission_state import Role
+from ..lifecycle.visibility import visible_actions
 from ..store.models import (
     AuditEvent,
     Engagement,
@@ -195,7 +196,11 @@ def get_audit(
     member: Membership = Depends(membership_dep),
     repo: Repository = Depends(get_repo),
 ):
-    return {"events": repo.list_audit(engagement_id)}
+    events = repo.list_audit(engagement_id)
+    allowed = visible_actions(member.role == Role.CLIENT)
+    if allowed is not None:
+        events = [e for e in events if e.action in allowed]
+    return {"events": events}
 
 
 @router.get("/engagements/{engagement_id}/billing")

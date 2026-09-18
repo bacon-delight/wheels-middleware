@@ -457,3 +457,33 @@ def test_a_document_read_and_found_to_be_neither_records_that_finding(ctx):  # n
     doc = repo.get_document(eid, did)
     assert doc.doc_type == "UNKNOWN", "still not an agreement"
     assert doc.classified_type == "UNKNOWN", "but we know we looked"
+
+
+def test_a_customer_sees_only_their_side_of_the_activity_trail(ctx):  # noqa: F811
+    """A customer is a party to the contract, not a user of the workflow. Extraction, per-term
+    approvals and finance's internal back-and-forth are not theirs to see."""
+    client, repo, state = ctx
+    from app.lifecycle.submission_state import Role
+    from app.store.models import AuditEvent, Membership
+    from app.store.repository import new_id, utcnow
+
+    cid = _customer(client)
+    eid = client.post(
+        "/engagements", json={"name": "E", "customer_id": cid}
+    ).json()["engagement"]["engagement_id"]
+    repo.put_membership(Membership(
+        engagement_id=eid, user_id="c1", email="c@x.com", role=Role.CLIENT, created_at=utcnow(),
+    ))
+    for action in ("submit_to_client", "field_approved", "finance_approve",
+                   "pipeline_done", "client_approve", "document_removed"):
+        repo.put_audit(AuditEvent(
+            engagement_id=eid, event_id=new_id(), ts=utcnow(), actor_id="p",
+            actor_role="provider", actor_name="Analyst", action=action,
+        ))
+
+    provider_sees = {e["action"] for e in client.get(f"/engagements/{eid}/audit").json()["events"]}
+    assert {"field_approved", "pipeline_done", "document_removed"} <= provider_sees
+
+    _as(state, Principal(user_id="c1", email="c@x.com", groups=["client"]))
+    customer_sees = {e["action"] for e in client.get(f"/engagements/{eid}/audit").json()["events"]}
+    assert customer_sees == {"submit_to_client", "client_approve", "engagement_created"}
