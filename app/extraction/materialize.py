@@ -147,6 +147,12 @@ def build_rows(
         seen.add(rid)
 
         title, subtitle = _titles(record)
+        basis = billing_class = None
+        if info_type == "pricing_item":
+            from ..billing.frequency import classify
+
+            found = classify(record.get("frequency"), record.get("calculation"))
+            basis, billing_class = found.unit_basis, found.billing_class
         rows.append(
             TermRow(
                 engagement_id=engagement_id,
@@ -159,6 +165,8 @@ def build_rows(
                 subtitle=subtitle,
                 amount=record.get("amount"),
                 frequency=record.get("frequency"),
+                unit_basis=basis,
+                billing_class=billing_class,
                 program_id=program_id,
                 catalog_item_id=item_id,
                 catalog_match=match,

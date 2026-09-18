@@ -358,7 +358,9 @@ class TermRow(BaseModel):
     title: str
     subtitle: str | None = None
     amount: float | None = None
-    frequency: str | None = None
+    frequency: str | None = None  # the contract's own wording
+    unit_basis: str | None = None  # normalised, so the estimate and the interface agree
+    billing_class: str | None = None  # recurring | recurring_per_driver | usage | one_time | credit
 
     # --- catalog resolution (pricing rows) ---
     program_id: str | None = None
