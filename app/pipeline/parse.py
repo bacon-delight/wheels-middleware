@@ -47,16 +47,19 @@ def _process(body: dict) -> None:
     if doc is not None and not doc.type_overridden:
         detected, confidence = classify_doc_type(parsed.full_text)
         effective = find_effective_date(parsed.full_text)
-        if detected != doc.doc_type or effective != doc.effective_date:
-            repo.set_document_meta(
-                eid, did,
-                doc_type=detected if detected != "UNKNOWN" else None,
-                classified_type=detected,
-                confidence=confidence,
-                effective_date=effective,
-            )
-            log.info("classified %s/%s as %s (%.2f) effective=%s",
-                     eid, did, detected, confidence, effective)
+        # Record the outcome even when it is "neither" — that is a finding, not a non-event.
+        # Skipping the write when nothing changed left a document that had been read looking
+        # exactly like one that had not, so the interface kept saying its type would be
+        # identified by a run that had already happened.
+        repo.set_document_meta(
+            eid, did,
+            doc_type=detected if detected != "UNKNOWN" else None,
+            classified_type=detected,
+            confidence=confidence,
+            effective_date=effective,
+        )
+        log.info("classified %s/%s as %s (%.2f) effective=%s",
+                 eid, did, detected, confidence, effective)
         reconcile_engagement(repo, eid)
 
     # Re-upload path: sanity-gate before spending an extraction call.

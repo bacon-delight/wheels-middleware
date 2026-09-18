@@ -435,3 +435,25 @@ def test_an_agreement_cannot_be_removed_once_the_customer_is_reviewing(ctx):  # 
     blocked = client.delete(f"/engagements/{eid}/documents/{did}")
     assert blocked.status_code == 409
     assert "PENDING_CLIENT_APPROVAL" in blocked.json()["detail"]
+
+
+def test_a_document_read_and_found_to_be_neither_records_that_finding(ctx):  # noqa: F811
+    """"Not a lease or service agreement" is a result. Storing nothing left a document that
+    had been read indistinguishable from one that had not."""
+    client, repo, state = ctx
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"filename": "SOW.pdf", "submission_id": sid}).json()["document_id"]
+
+    doc = repo.get_document(eid, did)
+    assert doc.doc_type == "UNKNOWN" and doc.classified_type is None, "not read yet"
+
+    # What the parse worker writes when the text identifies neither kind of agreement.
+    repo.set_document_meta(eid, did, classified_type="UNKNOWN", confidence=0.0)
+
+    doc = repo.get_document(eid, did)
+    assert doc.doc_type == "UNKNOWN", "still not an agreement"
+    assert doc.classified_type == "UNKNOWN", "but we know we looked"
