@@ -186,32 +186,64 @@ def list_vehicles(
     return {"vehicles": vehicles, "count": len(vehicles)}
 
 
+def _breakdown(counts: dict[str, int], order) -> list[dict]:
+    """Ordered rows with a share of the whole, so the UI never has to compute percentages."""
+    total = sum(counts.values())
+    return [
+        {
+            "key": key,
+            "count": counts.get(key, 0),
+            "share": round(100 * counts.get(key, 0) / total, 1) if total else 0.0,
+        }
+        for key in order
+        if counts.get(key, 0)
+    ]
+
+
 @router.get("/vehicles/summary")
 def vehicles_summary(
     principal: Principal = Depends(require_provider_principal),
     repo: Repository = Depends(get_repo),
 ):
-    """Inventory tiles. Counts come from GSI1 queries, never a scan."""
+    """Inventory composition. Counts come from GSI1 queries, never a scan."""
     by_status: dict[str, int] = {}
     by_ownership: dict[str, int] = {}
+    by_duty: dict[str, int] = {}
+    by_body: dict[str, int] = {}
+    by_powertrain: dict[str, int] = {}
     for o in VehicleOwnership:
         owned_total = 0
-        for st in VehicleStatus:
-            n = repo.vehicle_status_count(o.value, st.value)
-            if n:
-                by_status[st.value] = by_status.get(st.value, 0) + n
-                owned_total += n
+        for v in repo.list_vehicles_by_ownership(o.value):
+            owned_total += 1
+            by_status[v.status] = by_status.get(v.status, 0) + 1
+            by_duty[v.duty_band] = by_duty.get(v.duty_band, 0) + 1
+            by_body[v.body_class] = by_body.get(v.body_class, 0) + 1
+            by_powertrain[v.powertrain] = by_powertrain.get(v.powertrain, 0) + 1
         by_ownership[o.value] = owned_total
-    available = repo.vehicle_status_count(
-        VehicleOwnership.WHEELS_OWNED.value, VehicleStatus.IN_STOCK.value
-    )
+
+    wheels_owned = by_ownership.get(VehicleOwnership.WHEELS_OWNED.value, 0)
+    available = by_status.get(VehicleStatus.IN_STOCK.value, 0)
+    assigned = by_status.get(VehicleStatus.ASSIGNED.value, 0)
+    total = sum(by_ownership.values())
+    # Utilisation is against the leasable fleet: customer-owned units were never ours to lease,
+    # and retired ones have left it, so including either would understate how hard it works.
+    leasable = wheels_owned - by_status.get(VehicleStatus.RETIRED.value, 0)
     return {
-        "total": sum(by_ownership.values()),
+        "total": total,
         "available_to_lease": available,
-        "assigned": by_status.get(VehicleStatus.ASSIGNED.value, 0),
+        "assigned": assigned,
         "customer_owned": by_ownership.get(VehicleOwnership.CUSTOMER_OWNED.value, 0),
+        "wheels_owned": wheels_owned,
+        "utilisation": round(100 * assigned / leasable, 1) if leasable > 0 else 0.0,
+        "electrified_share": round(
+            100 * sum(by_powertrain.get(p, 0) for p in ("BEV", "PHEV", "HYBRID")) / total, 1
+        ) if total else 0.0,
         "by_status": by_status,
         "by_ownership": by_ownership,
+        "status_breakdown": _breakdown(by_status, [s.value for s in VehicleStatus]),
+        "duty_breakdown": _breakdown(by_duty, [d.value for d in DutyBand]),
+        "body_breakdown": _breakdown(by_body, [b.value for b in BodyClass]),
+        "powertrain_breakdown": _breakdown(by_powertrain, [p.value for p in Powertrain]),
     }
 
 

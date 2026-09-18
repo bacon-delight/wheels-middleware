@@ -32,7 +32,7 @@ router = APIRouter(tags=["finance"])
 _STAGES: list[tuple[str, str, set[str]]] = [
     ("processing", "Processing", {"DRAFT", "EXTRACTING", "REVALIDATING"}),
     ("underwriting", "Underwriting", {"IN_UNDERWRITING", "VALIDATION_FAILED"}),
-    ("client", "With client", {"PENDING_CLIENT_APPROVAL", "CHANGES_REQUESTED_CLIENT"}),
+    ("client", "With customer", {"PENDING_CLIENT_APPROVAL", "CHANGES_REQUESTED_CLIENT"}),
     (
         "finance",
         "Awaiting finance",
@@ -42,6 +42,16 @@ _STAGES: list[tuple[str, str, set[str]]] = [
     ("active", "Active", {"ACTIVE"}),
 ]
 _AWAITING_FINANCE = {"CLIENT_APPROVED", "PENDING_FINANCE_APPROVAL"}
+
+# Contract-expiry windows, in days from today. Anything already past is "expired".
+_EXPIRY: list[tuple[str, str, int | None, int | None]] = [
+    ("expired", "Expired", None, -1),
+    ("d30", "Within 30 days", 0, 30),
+    ("d60", "31-60 days", 31, 60),
+    ("d90", "61-90 days", 61, 90),
+    ("d180", "91-180 days", 91, 180),
+    ("later", "Beyond 180 days", 181, None),
+]
 
 # Receivables aging buckets, in days past due.
 _AGING: list[tuple[str, str, int, int | None]] = [
@@ -73,6 +83,13 @@ def _age_bucket(due: datetime.date, today: datetime.date) -> str:
         if days >= lo and (hi is None or days <= hi):
             return key
     return "current"
+
+
+def _expiry_bucket(days: int) -> str:
+    for key, _label, lo, hi in _EXPIRY:
+        if (lo is None or days >= lo) and (hi is None or days <= hi):
+            return key
+    return "later"
 
 
 def _pct(part: float, whole: float) -> float:
@@ -139,9 +156,17 @@ def finance_dashboard(
                 "client_name": e.client_name,
                 "scope": e.scope,
                 "status": status,
+                "created_at": e.created_at,
                 "fleet_size": e.fleet_size,
                 "monthly_recurring": dues,
                 "annualized": round((dues or 0) * 12, 2) if dues else None,
+                "contract_end": e.contract_end,
+                "contract_term_months": e.contract_term_months,
+                "auto_renew": e.auto_renew,
+                "days_to_expiry": (
+                    (datetime.date.fromisoformat(e.contract_end) - today).days
+                    if e.contract_end else None
+                ),
                 "collected_amount": stats["paid_amount"],
                 "collected_count": stats["paid_count"],
                 "outstanding_amount": round(outstanding, 2),
@@ -209,6 +234,28 @@ def finance_dashboard(
     ]
     trend = [{"month": m, **{k: round(v, 2) for k, v in vals.items()}}
              for m, vals in sorted(billed_by_month.items())]
+    # Newest first, for the dashboard's "recent" panel.
+    recent = sorted(rows, key=lambda r: r["created_at"] or "", reverse=True)[:top]
+
+    # --- contract expiry ---
+    # Only active engagements can expire in a way anyone needs to act on; a deal still in
+    # underwriting has no live term to renew.
+    dated = [r for r in rows if r["days_to_expiry"] is not None and r["status"] == "ACTIVE"]
+    expiry_buckets = {
+        key: {"key": key, "label": label, "count": 0, "monthly_recurring": 0.0}
+        for key, label, _lo, _hi in _EXPIRY
+    }
+    for r in dated:
+        b = expiry_buckets[_expiry_bucket(r["days_to_expiry"])]
+        b["count"] += 1
+        b["monthly_recurring"] += r["monthly_recurring"] or 0
+    for b in expiry_buckets.values():
+        b["monthly_recurring"] = round(b["monthly_recurring"], 2)
+    # Soonest first; anything already expired leads, since it is the most urgent.
+    expiring = sorted(dated, key=lambda r: r["days_to_expiry"])
+    # Revenue whose term ends inside the renewal window, i.e. what is up for renegotiation.
+    at_renewal = [r for r in dated if r["days_to_expiry"] <= 90]
+    renewal_value = round(sum(r["monthly_recurring"] or 0 for r in at_renewal), 2)
 
     # Overdue first, then active + highest-revenue, then the rest of the pipeline.
     rows.sort(key=lambda r: (-r["overdue_amount"], r["status"] != "ACTIVE",
@@ -239,12 +286,18 @@ def finance_dashboard(
             "missed_amount": missed_amount,
             "missed_engagements": sum(1 for r in rows if r["overdue_count"] > 0),
             "top5_revenue_share": top5_share,
+            "expiring_90d": len(at_renewal),
+            "expiring_90d_value": renewal_value,
+            "expired": expiry_buckets["expired"]["count"],
         },
         "funnel": funnel,
         "aging": [aging[key] for key, _l, _lo, _hi in _AGING],
         "top_customers": top_customers,
         "top_engagements": top_engagements,
         "top_collected": top_collected,
+        "recent_engagements": recent,
+        "expiry_buckets": [expiry_buckets[key] for key, _l, _lo, _hi in _EXPIRY],
+        "expiring_contracts": expiring[:top],
         "at_risk_customers": at_risk,
         "revenue_trend": trend,
         "customers": customer_rows,

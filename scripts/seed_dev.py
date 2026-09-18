@@ -65,22 +65,23 @@ CUSTOMERS = [
     ("Veltrix Manufacturing", "Manufacturing", "Detroit", "US"),
 ]
 
-# (customer index, engagement name, scope, lifecycle status, vehicles, months since billing start)
+# (customer index, name, scope, status, vehicles, months since billing start, term months,
+#  days until the contract expires -- negative means it already lapsed)
 ENGAGEMENTS = [
-    (0, "Field fleet — 2024 renewal", "LEASE_AND_SERVICE", "ACTIVE", 62, 11),
-    (0, "Q3 expansion — service vans", "LEASE_ONLY", "ACTIVE", 24, 5),
-    (1, "Cold-chain distribution fleet", "LEASE_AND_SERVICE", "ACTIVE", 48, 9),
-    (1, "Regional depot top-up", "LEASE_ONLY", "PENDING_CLIENT_APPROVAL", 16, None),
-    (2, "Managed services — owned fleet", "SERVICE_ONLY", "ACTIVE", 0, 7),
-    (3, "Line-haul tractors", "LEASE_AND_SERVICE", "ACTIVE", 34, 13),
-    (4, "Temperature-controlled vans", "LEASE_AND_SERVICE", "ACTIVE", 28, 4),
-    (5, "Vocational trucks — West", "LEASE_ONLY", "ACTIVE", 41, 8),
-    (6, "Store delivery fleet", "LEASE_AND_SERVICE", "ACTIVE", 55, 6),
-    (7, "Field engineering pickups", "LEASE_ONLY", "IN_UNDERWRITING", 22, None),
-    (8, "Facilities vans", "LEASE_AND_SERVICE", "ACTIVE", 19, 3),
-    (9, "Route delivery — Southeast", "LEASE_ONLY", "PENDING_FINANCE_APPROVAL", 30, None),
-    (10, "Technician fleet", "LEASE_AND_SERVICE", "ACTIVE", 37, 10),
-    (11, "Plant logistics + forklifts", "LEASE_AND_SERVICE", "DRAFT", 0, None),
+    (0, "Field fleet — 2024 renewal", "LEASE_AND_SERVICE", "ACTIVE", 48, 11, 36, 18),
+    (0, "Q3 expansion — service vans", "LEASE_ONLY", "ACTIVE", 18, 5, 24, 540),
+    (1, "Cold-chain distribution fleet", "LEASE_AND_SERVICE", "ACTIVE", 38, 9, 36, 47),
+    (1, "Regional depot top-up", "LEASE_ONLY", "PENDING_CLIENT_APPROVAL", 14, None, 36, None),
+    (2, "Managed services — owned fleet", "SERVICE_ONLY", "ACTIVE", 0, 7, 24, 130),
+    (3, "Line-haul tractors", "LEASE_AND_SERVICE", "ACTIVE", 26, 13, 60, 1_180),
+    (4, "Temperature-controlled vans", "LEASE_AND_SERVICE", "ACTIVE", 22, 4, 36, 78),
+    (5, "Vocational trucks — West", "LEASE_ONLY", "ACTIVE", 31, 8, 48, 860),
+    (6, "Store delivery fleet", "LEASE_AND_SERVICE", "ACTIVE", 42, 6, 36, -12),
+    (7, "Field engineering pickups", "LEASE_ONLY", "IN_UNDERWRITING", 17, None, 36, None),
+    (8, "Facilities vans", "LEASE_AND_SERVICE", "ACTIVE", 15, 3, 24, 205),
+    (9, "Route delivery — Southeast", "LEASE_ONLY", "PENDING_FINANCE_APPROVAL", 24, None, 36, None),
+    (10, "Technician fleet", "LEASE_AND_SERVICE", "ACTIVE", 28, 10, 36, 88),
+    (11, "Plant logistics + forklifts", "LEASE_AND_SERVICE", "DRAFT", 0, None, 36, None),
 ]
 
 # Service lines with plausible per-vehicle-per-month rates.
@@ -212,7 +213,21 @@ def main() -> int:
     cursor = 0
     active_count = 0
 
-    for ci, name, scope, status, want_vehicles, months in ENGAGEMENTS:
+    # A real fleet is never all in stock: some units are being serviced, some have aged out and
+    # been remarketed, and some are still on order from the manufacturer.
+    tail = pool[-72:]
+    del pool[-72:]
+    for i, v in enumerate(tail):
+        status = (
+            VehicleStatus.RETIRED.value if i < 30
+            else VehicleStatus.IN_MAINTENANCE.value if i < 52
+            else VehicleStatus.ON_ORDER.value
+        )
+        if apply:
+            repo.update_vehicle(v.vehicle_id, {"status": status})
+    print("           30 retired, 22 in maintenance, 20 on order")
+
+    for ci, name, scope, status, want_vehicles, months, term, expires_in in ENGAGEMENTS:
         eid, sid = new_id(), new_id()
         customer_id = cust_ids[ci]
         legal = CUSTOMERS[ci][0]
@@ -224,6 +239,12 @@ def main() -> int:
         )
         if apply:
             repo.put_engagement(eng)
+            if expires_in is not None:
+                end = today + datetime.timedelta(days=expires_in)
+                repo.set_engagement_contract(
+                    eid, (end - datetime.timedelta(days=30 * term)).isoformat(), term,
+                    end.isoformat(), rng.random() < 0.4, rng.choice([60, 90, 90, 120]),
+                )
             repo.put_membership(Membership(
                 engagement_id=eid, user_id=PROVIDER_ID, email=PROVIDER_EMAIL,
                 role=Role.PROVIDER, name=PROVIDER_NAME, created_at=utcnow(),

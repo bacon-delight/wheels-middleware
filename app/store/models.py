@@ -52,6 +52,14 @@ class Engagement(BaseModel):
     monthly_recurring: float | None = None  # computed at billing setup / fleet change
     billing_start: str | None = None  # ISO date billing became active (schedule anchor)
     billing_frequency: str = "monthly"  # monthly | quarterly | annual
+    # --- contract term ---
+    # A master agreement runs for a fixed term and then renews or lapses. `contract_end` is the
+    # date the current term expires; renewal notice is the lead time the agreement requires.
+    contract_start: str | None = None  # ISO date the agreement took effect
+    contract_term_months: int | None = None
+    contract_end: str | None = None  # ISO date the current term expires
+    auto_renew: bool = False
+    renewal_notice_days: int = 90
     created_by: str
     created_at: str
 

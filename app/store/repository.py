@@ -176,6 +176,29 @@ class Repository:
             ),
         )
 
+    def set_engagement_contract(
+        self,
+        engagement_id: str,
+        start: str | None,
+        term_months: int | None,
+        end: str | None,
+        auto_renew: bool,
+        renewal_notice_days: int,
+    ) -> None:
+        """Set the contract term. `end` is stored rather than derived so a negotiated end date
+        that does not fall exactly `term_months` after the start is representable."""
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
+            UpdateExpression=(
+                "SET contract_start = :s, contract_term_months = :t, contract_end = :e, "
+                "auto_renew = :a, renewal_notice_days = :n"
+            ),
+            ExpressionAttributeValues=_to_decimal({
+                ":s": start, ":t": term_months, ":e": end,
+                ":a": auto_renew, ":n": renewal_notice_days,
+            }),
+        )
+
     def set_engagement_schedule(
         self, engagement_id: str, billing_start: str, billing_frequency: str
     ) -> None:

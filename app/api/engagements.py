@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require_provider
 from ..auth.principal import Principal
@@ -34,6 +34,14 @@ class UpdateEngagementIn(BaseModel):
     name: str | None = None
     scope: str | None = None
     customer_id: str | None = None
+
+
+class ContractTermIn(BaseModel):
+    contract_start: str | None = None  # ISO date
+    contract_term_months: int | None = Field(default=None, ge=1, le=240)
+    contract_end: str | None = None  # ISO date; derived from start + term when omitted
+    auto_renew: bool = False
+    renewal_notice_days: int = Field(default=90, ge=0, le=365)
 
 
 class InviteIn(BaseModel):
@@ -289,6 +297,39 @@ def invite_user(
         raise HTTPException(400, f"invite failed: {e}") from e
     _audit(repo, engagement_id, principal, "user_invited", target=body.email)
     return {"membership": invited}
+
+
+@router.put("/engagements/{engagement_id}/contract")
+def set_contract_term(
+    engagement_id: str,
+    body: ContractTermIn,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Record when the master agreement expires, so renewals can be seen coming."""
+    import datetime
+
+    if repo.get_engagement(engagement_id) is None:
+        raise HTTPException(404, "engagement not found")
+    end = body.contract_end
+    if end is None and body.contract_start and body.contract_term_months:
+        try:
+            start = datetime.date.fromisoformat(body.contract_start)
+        except ValueError as e:
+            raise HTTPException(400, "contract_start must be an ISO date") from e
+        total = start.month - 1 + body.contract_term_months
+        year, month = start.year + total // 12, total % 12 + 1
+        import calendar
+
+        day = min(start.day, calendar.monthrange(year, month)[1])
+        end = datetime.date(year, month, day).isoformat()
+    repo.set_engagement_contract(
+        engagement_id, body.contract_start, body.contract_term_months, end,
+        body.auto_renew, body.renewal_notice_days,
+    )
+    _audit(repo, engagement_id, principal, "contract_term_set", comment=end)
+    return {"engagement": repo.get_engagement(engagement_id)}
 
 
 @router.patch("/engagements/{engagement_id}/billing")
