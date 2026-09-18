@@ -269,3 +269,62 @@ def test_a_customer_is_told_an_amendment_opened_but_not_how_it_is_processed(ctx)
     actions = [e["action"] for e in client.get(f"/engagements/{eid}/audit").json()["events"]]
     assert "amendment_opened" in actions
     assert "field_approved" not in actions
+
+
+def test_an_amendment_opened_by_mistake_can_be_discarded(ctx):
+    """Without this an accidental click blocks the engagement: no second cycle may open."""
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    sid = client.post(f"/engagements/{eid}/amendments").json()["submission"]["submission_id"]
+    assert client.get(f"/engagements/{eid}").json()["can_open_amendment"] is False
+
+    r = client.delete(f"/engagements/{eid}/amendments/{sid}")
+    assert r.status_code == 200 and r.json()["discarded_cycle"] == 2
+    body = client.get(f"/engagements/{eid}")
+    assert body.json()["can_open_amendment"] is True
+    assert [c["label"] for c in body.json()["cycles"]] == ["Original agreement"]
+    # The live cycle is untouched and the engagement never left ACTIVE.
+    assert repo.live_submission(eid).cycle == 1
+    assert repo.get_engagement(eid).status == "ACTIVE"
+    # A fresh amendment numbers from the cycles that remain.
+    assert client.post(f"/engagements/{eid}/amendments").json()["cycle"] == 2
+
+
+def test_an_amendment_with_work_in_it_is_not_discarded_silently(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    sid = client.post(f"/engagements/{eid}/amendments").json()["submission"]["submission_id"]
+    did = client.post(
+        f"/engagements/{eid}/documents:presign",
+        json={"filename": "renewal.pdf", "submission_id": sid},
+    ).json()["document_id"]
+
+    r = client.delete(f"/engagements/{eid}/amendments/{sid}")
+    assert r.status_code == 409
+    assert "remove the agreements" in r.json()["detail"]
+
+    # Removing the document makes it discardable again.
+    assert client.delete(f"/engagements/{eid}/documents/{did}").status_code == 200
+    assert client.delete(f"/engagements/{eid}/amendments/{sid}").status_code == 200
+
+
+def test_the_signed_cycle_is_never_discardable(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    original = repo.live_submission(eid).submission_id
+    r = client.delete(f"/engagements/{eid}/amendments/{original}")
+    assert r.status_code == 409
+    assert "original review cycle" in r.json()["detail"]
+    assert repo.live_submission(eid).submission_id == original
+
+
+def test_an_amendment_under_review_is_not_discardable(ctx):
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    sid = client.post(f"/engagements/{eid}/amendments").json()["submission"]["submission_id"]
+    repo.update_submission_status(
+        eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value
+    )
+    r = client.delete(f"/engagements/{eid}/amendments/{sid}")
+    assert r.status_code == 409
+    assert "before it starts" in r.json()["detail"]

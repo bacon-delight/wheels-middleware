@@ -16,6 +16,7 @@ CLIENT_VISIBLE_ACTIONS: frozenset[str] = frozenset({
     # An amendment is a change to the deal the customer signed, so the fact one was opened is
     # theirs to see — the documents and extraction behind it are not.
     "amendment_opened",
+    "amendment_discarded",
     "submit_to_client",
     "client_approve",
     "client_request_changes",

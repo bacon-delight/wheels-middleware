@@ -198,6 +198,53 @@ def open_amendment(
     return {"submission": amendment, "cycle": cycle, "label": cycle_label(cycle)}
 
 
+@router.delete("/engagements/{engagement_id}/amendments/{submission_id}", status_code=200)
+def discard_amendment(
+    engagement_id: str,
+    submission_id: str,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Close an amendment that was opened by mistake, before any work went into it.
+
+    Without this an accidental click would block the engagement for good: a cycle is open, so
+    no second amendment may start, and the open cycle never completes. Only an untouched one
+    can be discarded — once a document has been uploaded to it there is something to keep or
+    to remove deliberately, and once it has left DRAFT the customer or finance may have seen
+    it. The cycle already in force is never a candidate.
+    """
+    sub = repo.get_submission(engagement_id, submission_id)
+    if sub is None:
+        raise HTTPException(404, "submission not found")
+    if sub.cycle <= 1:
+        raise HTTPException(409, "the original review cycle cannot be discarded")
+    if sub.status != SubmissionStatus.DRAFT:
+        raise HTTPException(
+            409,
+            "an amendment can only be discarded before it starts, "
+            f"not while {sub.status.value}",
+        )
+    own = [d for d in repo.list_documents(engagement_id) if d.cycle == sub.cycle]
+    if own:
+        raise HTTPException(
+            409,
+            "remove the agreements uploaded to this amendment before discarding it",
+        )
+
+    repo.delete_submission(engagement_id, submission_id)
+    # The engagement's status followed the live cycle throughout, so nothing needs restoring.
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name,
+            action="amendment_discarded", target=cycle_label(sub.cycle),
+        )
+    )
+    return {"ok": True, "discarded_cycle": sub.cycle}
+
+
 @router.post("/engagements/{engagement_id}/documents/{document_id}:extract")
 def extract_document(
     engagement_id: str,

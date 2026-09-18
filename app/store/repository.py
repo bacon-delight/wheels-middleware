@@ -414,6 +414,11 @@ class Repository:
         )
         return s
 
+    def delete_submission(self, engagement_id: str, submission_id: str) -> None:
+        self.table.delete_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.submission_sk(submission_id)}
+        )
+
     def get_submission(self, engagement_id: str, submission_id: str) -> Submission | None:
         r = self.table.get_item(
             Key={"PK": k.eng_pk(engagement_id), "SK": k.submission_sk(submission_id)}
