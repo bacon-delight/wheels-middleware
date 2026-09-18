@@ -253,3 +253,41 @@ def test_scope_locks_once_the_client_has_been_asked_to_approve(ctx):  # noqa: F8
     ):
         repo.update_submission_status(eid, sid, a.value, b.value)
     assert client.patch(f"/engagements/{eid}", json={"scope": "SERVICE_ONLY"}).status_code == 409
+
+
+def test_finance_dashboard_rolls_revenue_up_to_the_customer(ctx):  # noqa: F811
+    """One customer signs many engagements, so exposure is the customer's total, not per deal."""
+    client, repo, state = ctx
+    from .test_api import _drive_to_active
+
+    eid = _drive_to_active(client, repo, state, None)
+    cid = _customer(client, "Rollup Corp")
+    client.patch(f"/engagements/{eid}", json={"customer_id": cid})
+
+    d = client.get("/finance/dashboard").json()
+    assert d["totals"]["customers"] >= 1
+    assert d["totals"]["collection_rate"] >= 0
+    assert d["totals"]["revenue_per_vehicle"] > 0
+
+    top = d["top_customers"][0]
+    assert top["name"] == "Rollup Corp"
+    assert top["engagements"] == 1
+    assert top["monthly_recurring"] == 400.0
+    assert top["annualized"] == 4800.0
+    assert top["revenue_share"] == 100.0
+    assert d["totals"]["top5_revenue_share"] == 100.0
+
+    assert d["top_engagements"][0]["engagement_id"] == eid
+    assert [b["key"] for b in d["aging"]] == ["current", "d1_30", "d31_60", "d61_90", "d90_plus"]
+    assert sum(b["count"] for b in d["aging"]) == 12  # the full monthly schedule
+    assert d["revenue_trend"] and all("billed" in m for m in d["revenue_trend"])
+
+
+def test_finance_dashboard_ranking_limit_is_honoured(ctx):  # noqa: F811
+    client, repo, state = ctx
+    for n in ("A Ltd", "B Ltd", "C Ltd"):
+        cid = _customer(client, n)
+        client.post("/engagements", json={"name": f"E {n}", "customer_id": cid})
+    d = client.get("/finance/dashboard", params={"top": 2}).json()
+    assert len(d["top_customers"]) == 2
+    assert len(d["customers"]) == 3  # the full list is always returned
