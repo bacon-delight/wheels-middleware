@@ -88,11 +88,21 @@ def list_customers(
     rows = []
     for c in customers:
         engagements = repo.list_customer_engagements(c.customer_id)
+        # Only live engagements carry revenue and a billed fleet; a draft has neither yet.
+        active = [e for e in engagements if e.status == "ACTIVE"]
+        soonest = min(
+            (e.contract_end for e in active if e.contract_end), default=None
+        )
         rows.append(
             {
                 **c.model_dump(mode="json"),
                 "engagement_count": len(engagements),
-                "fleet_size": sum(e.fleet_size or 0 for e in engagements),
+                "active_engagements": len(active),
+                "fleet_size": sum(e.fleet_size or 0 for e in active),
+                "monthly_recurring": round(
+                    sum(e.monthly_recurring or 0 for e in active), 2
+                ),
+                "next_contract_end": soonest,
             }
         )
     rows.sort(key=lambda r: r["legal_name"].lower())
