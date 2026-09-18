@@ -109,9 +109,11 @@ def rank_standing(documents: list[dict]) -> dict[str, str]:
     out: dict[str, str] = {}
     for doc_type, docs in by_type.items():
         if doc_type == UNKNOWN:
-            # An unclassified document governs nothing until we know what it is.
+            # Unclassified documents are not competing editions of one agreement — they may be
+            # a statement of work, an amendment, or a scan we could not read. None supersedes
+            # another, and none contributes to scope or terms.
             for d in docs:
-                out[d["document_id"]] = "SUPERSEDED" if len(docs) > 1 else "CURRENT"
+                out[d["document_id"]] = "CURRENT"
             continue
         ordered = sorted(
             docs,

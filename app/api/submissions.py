@@ -16,7 +16,7 @@ from ..lifecycle.submission_state import (
     transition,
 )
 from ..messaging import emit_lifecycle_event, enqueue_ingest
-from ..store.models import AuditEvent, Membership, Submission
+from ..store.models import AuditEvent, DocumentStanding, Membership, Submission
 from ..store.repository import ConflictError, Repository, new_id, utcnow
 from ..store.s3 import S3Store
 
@@ -117,24 +117,25 @@ def submit_for_processing(
 ):
     sub = _load(repo, engagement_id, submission_id)
     # The only data-completeness gate in the flow: the state machine stays pure (source,
-    # action, role). Scope is derived from what gets uploaded rather than declared up front, so
-    # the requirement is simply that there is something in force to extract.
-    if not sub.docs():
+    # action, role). The gate counts uploaded documents, not the submission's typed slots —
+    # classification happens inside this run, so requiring a classified document first would
+    # mean nothing could ever be classified.
+    documents = [
+        d for d in repo.list_documents(engagement_id)
+        if d.standing != DocumentStanding.SUPERSEDED.value
+    ]
+    if not documents:
         raise HTTPException(400, "upload at least one agreement before running extraction")
     updated = _apply(repo, principal, member, sub, Action.SUBMIT_FOR_PROCESSING)
-    # Kick off the pipeline for each uploaded document in the submission.
-    for document_id in sub.docs().values():
-        doc = repo.get_document(engagement_id, document_id)
-        ver = (
-            repo.get_document_version(engagement_id, document_id, doc.current_version)
-            if doc
-            else None
-        )
-        if doc and ver:
+    # Every document in force goes through the pipeline, including the ones whose type is not
+    # yet known: parsing is what reads the type off the text.
+    for doc in documents:
+        ver = repo.get_document_version(engagement_id, doc.document_id, doc.current_version)
+        if ver:
             enqueue_ingest(
                 {
                     "engagement_id": engagement_id, "submission_id": submission_id,
-                    "document_id": document_id, "version": ver.version,
+                    "document_id": doc.document_id, "version": ver.version,
                     "s3_key": ver.s3_key, "doc_type": doc.doc_type,
                 }
             )
@@ -195,17 +196,15 @@ def reupload(
     """Provider re-uploaded document(s) with the requested change; re-validate + re-extract."""
     sub = _load(repo, engagement_id, submission_id)
     updated = _apply(repo, principal, member, sub, Action.REUPLOAD, body.comment)
-    for document_id in sub.docs().values():
-        doc = repo.get_document(engagement_id, document_id)
-        ver = (
-            repo.get_document_version(engagement_id, document_id, doc.current_version)
-            if doc
-            else None
-        )
-        if doc and ver:
+    # Same rule as the first run: everything in force goes through, typed or not.
+    for doc in repo.list_documents(engagement_id):
+        if doc.standing == DocumentStanding.SUPERSEDED.value:
+            continue
+        ver = repo.get_document_version(engagement_id, doc.document_id, doc.current_version)
+        if ver:
             enqueue_ingest({
                 "engagement_id": engagement_id, "submission_id": submission_id,
-                "document_id": document_id, "version": ver.version,
+                "document_id": doc.document_id, "version": ver.version,
                 "s3_key": ver.s3_key, "doc_type": doc.doc_type,
             })
     return {"submission": updated}

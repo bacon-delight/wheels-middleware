@@ -250,3 +250,40 @@ def test_extraction_needs_at_least_one_agreement(ctx):  # noqa: F811
     assert client.post(
         f"/engagements/{eid}/submissions/{sid}:submit-for-processing"
     ).status_code == 200
+
+
+def test_extraction_runs_on_a_document_whose_type_is_not_yet_known(ctx):  # noqa: F811
+    """Classification happens during extraction, so requiring a typed document first would
+    deadlock: nothing could ever be classified."""
+    client, repo, state = ctx
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+
+    # No doc_type given, so it lands as UNKNOWN and fills no submission slot.
+    client.post(f"/engagements/{eid}/documents:presign",
+                json={"filename": "Walmart-SOW.pdf", "submission_id": sid})
+    assert repo.list_submissions(eid)[0].docs() == {}
+    assert client.get(f"/engagements/{eid}").json()["engagement"]["scope"] is None
+
+    assert client.post(
+        f"/engagements/{eid}/submissions/{sid}:submit-for-processing"
+    ).status_code == 200
+
+
+def test_unclassified_documents_do_not_supersede_each_other(ctx):  # noqa: F811
+    """Two unreadable uploads are not competing editions of one agreement."""
+    client, repo, state = ctx
+    from app.validation.reconcile import reconcile_engagement
+
+    cid = _customer(client)
+    r = client.post("/engagements", json={"name": "E", "customer_id": cid}).json()
+    eid, sid = r["engagement"]["engagement_id"], r["submission_id"]
+    for fn in ("sow.pdf", "amendment.pdf"):
+        client.post(f"/engagements/{eid}/documents:presign",
+                    json={"filename": fn, "submission_id": sid})
+    reconcile_engagement(repo, eid)
+
+    standings = {d["filename"]: d["standing"]
+                 for d in client.get(f"/engagements/{eid}").json()["documents"]}
+    assert set(standings.values()) == {"CURRENT"}
