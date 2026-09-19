@@ -353,3 +353,81 @@ def test_illegal_transition_returns_409(ctx):
     eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
     # Can't submit-to-client straight from DRAFT.
     assert client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client").status_code == 409
+
+
+def test_existing_customer_contact_can_be_added_to_another_engagement(ctx, monkeypatch):
+    """Someone the customer already has on one engagement joins the next without a new account."""
+    client, repo, state = ctx
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        "app.notify.emailer.Emailer.send",
+        lambda self, **kw: sent.append(kw),
+    )
+
+    cid = client.post("/customers", json={"legal_name": "Apex Pvt Ltd"}).json()["customer"][
+        "customer_id"
+    ]
+    first = client.post("/engagements", json={"name": "Spring lease", "customer_id": cid})
+    second = client.post("/engagements", json={"name": "Autumn lease", "customer_id": cid})
+    e1 = first.json()["engagement"]["engagement_id"]
+    e2 = second.json()["engagement"]["engagement_id"]
+    repo.put_membership(Membership(engagement_id=e1, user_id="client9", email="jordan@apex.com",
+                                   role=Role.CLIENT, name="Jordan Lee", created_at=utcnow()))
+
+    # Someone else's customer contact must never appear in this customer's picker.
+    other = client.post("/customers", json={"legal_name": "Beta Corp"}).json()["customer"][
+        "customer_id"
+    ]
+    e3 = client.post(
+        "/engagements", json={"name": "Beta", "customer_id": other}
+    ).json()["engagement"]["engagement_id"]
+    repo.put_membership(Membership(engagement_id=e3, user_id="beta1", email="sam@beta.com",
+                                   role=Role.CLIENT, created_at=utcnow()))
+
+    cands = client.get(f"/engagements/{e2}/invitations/candidates").json()["candidates"]
+    assert [c["user_id"] for c in cands] == ["client9"]
+    assert cands[0]["engagements"] == ["Spring lease"] and cands[0]["onboarded"] is True
+
+    r = client.post(f"/engagements/{e2}/members", json={"user_id": "client9"})
+    assert r.status_code == 201, r.text
+    assert r.json()["membership"]["email"] == "jordan@apex.com"
+    # No temporary password is issued: the account and its password already exist.
+    assert sent and sent[0]["template"] == "ENGAGEMENT_ACCESS_ADDED"
+    assert "temp_password" not in sent[0]
+
+    # Now on both engagements, so no longer offered, and not addable twice.
+    assert client.get(f"/engagements/{e2}/invitations/candidates").json()["candidates"] == []
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "client9"}).status_code == 409
+    assert "client9" in {m["user_id"] for m in client.get(f"/engagements/{e2}").json()["members"]}
+
+    # The customer boundary holds on the write, not just in the listing.
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "beta1"}).status_code == 404
+
+    # And a customer cannot see who else the customer has.
+    _as(state, Principal(user_id="client9", email="jordan@apex.com", groups=["client"]))
+    assert client.get(f"/engagements/{e2}/invitations/candidates").status_code == 403
+
+
+def test_access_email_failure_still_grants_access(ctx, monkeypatch):
+    """The membership is the point; the courtesy email is not worth failing the request over."""
+    client, repo, state = ctx
+
+    def boom(self, **kw):
+        raise RuntimeError("SES rejected the recipient")
+
+    monkeypatch.setattr("app.notify.emailer.Emailer.send", boom)
+
+    cid = client.post("/customers", json={"legal_name": "Apex Pvt Ltd"}).json()["customer"][
+        "customer_id"
+    ]
+    e1 = client.post(
+        "/engagements", json={"name": "One", "customer_id": cid}
+    ).json()["engagement"]["engagement_id"]
+    e2 = client.post(
+        "/engagements", json={"name": "Two", "customer_id": cid}
+    ).json()["engagement"]["engagement_id"]
+    repo.put_membership(Membership(engagement_id=e1, user_id="client9", email="jordan@apex.com",
+                                   role=Role.CLIENT, name="Jordan Lee", created_at=utcnow()))
+
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "client9"}).status_code == 201
+    assert repo.get_membership(e2, "client9") is not None

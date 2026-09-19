@@ -61,6 +61,22 @@ TEMPLATES: dict[str, dict] = {
         "text": "You've been added to {brand} by {inviter_name} as a Wheels team member.\n"
         "Sign in at {login_url} with {recipient_email} and temporary password: {temp_password}",
     },
+    "ENGAGEMENT_ACCESS_ADDED": {
+        "recipients": ["invited_user"],
+        "subject": "You've been added to {engagement_name} on " + BRAND,
+        "heading": "You now have access to {engagement_name}",
+        "intro": "Hello {recipient_name},<br><br>{inviter_name} has given you access to "
+        "<strong>{engagement_name}</strong> in {brand} as a <strong>{role_label}</strong>, "
+        "alongside the engagements you already work on.",
+        # Deliberately no temporary password: this person already has an account, and issuing
+        # one would reset the credentials they are signing in with today.
+        "detail": "Sign in as usual with <strong>{recipient_email}</strong> — the new "
+        "engagement is waiting on your engagements list.",
+        "cta": ("Sign in", "login_url"),
+        "text": "{inviter_name} has given you access to {engagement_name} on {brand} as "
+        "{role_label}. Sign in at {login_url} with {recipient_email} — your existing password "
+        "still applies.",
+    },
     "TERMS_SUBMITTED_TO_CLIENT": {
         "recipients": ["client"],
         "subject": "Action needed: review the billing terms for {engagement_name}",

@@ -7,6 +7,7 @@ ap-south-1 even though the user pool is in ap-south-2.
 
 from __future__ import annotations
 
+import logging
 import secrets
 import string
 
@@ -14,6 +15,8 @@ from .config import Settings, get_settings
 from .lifecycle.submission_state import Role
 from .store.models import Engagement, Membership, ProviderUser
 from .store.repository import Repository, utcnow
+
+log = logging.getLogger(__name__)
 
 
 def _temp_password() -> str:
@@ -87,6 +90,53 @@ def create_and_invite(
         temp_password=temp,
         login_url=f"{settings.ui_url}/login",
     )
+    return membership
+
+
+def add_existing_member(
+    repo: Repository,
+    engagement: Engagement,
+    person: Membership,
+    inviter_name: str,
+    settings: Settings | None = None,
+) -> Membership:
+    """Give someone who already has an account access to another of their engagements.
+
+    No Cognito call at all: the user, their group and their password already exist, and
+    `admin_create_user` on an existing username either fails or resets credentials that are in
+    use. All that is missing is the membership row and a note that it happened.
+    """
+    settings = settings or get_settings()
+    membership = repo.put_membership(
+        Membership(
+            engagement_id=engagement.engagement_id,
+            user_id=person.user_id,
+            email=person.email,
+            role=Role.CLIENT,
+            name=person.name,
+            phone=person.phone,
+            created_at=utcnow(),
+        )
+    )
+
+    from .notify.emailer import Emailer
+
+    # Best-effort, unlike an invitation: the access is the point and it is already granted, and
+    # this person can sign in with the password they have. Failing the request over the courtesy
+    # email would report "could not add" for someone who had in fact just been added.
+    try:
+        Emailer(settings).send(
+            to=person.email,
+            template="ENGAGEMENT_ACCESS_ADDED",
+            recipient_name=person.name or person.email,
+            recipient_email=person.email,
+            engagement_name=engagement.name,
+            inviter_name=inviter_name,
+            role_label=_role_label(Role.CLIENT),
+            login_url=f"{settings.ui_url}/login",
+        )
+    except Exception as e:  # noqa: BLE001 - the membership stands either way
+        log.warning("access-added email -> %s failed: %s", person.email, e)
     return membership
 
 

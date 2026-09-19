@@ -48,6 +48,12 @@ class InviteIn(BaseModel):
     name: str | None = None
 
 
+class AddMemberIn(BaseModel):
+    """Add someone who already has an account, identified by who they are, not by email."""
+
+    user_id: str
+
+
 class FleetIn(BaseModel):
     """`null` clears the override and reverts to the derived vehicle count."""
 
@@ -346,6 +352,93 @@ def invite_user(
         raise HTTPException(400, f"invite failed: {e}") from e
     _audit(repo, engagement_id, principal, "user_invited", target=body.email)
     return {"membership": invited}
+
+
+def _customer_people(repo: Repository, engagement: Engagement) -> dict[str, dict]:
+    """Every customer-side person already known across this customer's engagements.
+
+    Keyed by user id, carrying the engagements each is on, so the picker can say where someone
+    already has access. Scoped to the one customer on purpose: reaching across customers would
+    put one client's staff in front of another client's contract.
+    """
+    people: dict[str, dict] = {}
+    if not engagement.customer_id:
+        return people
+    for e in repo.list_customer_engagements(engagement.customer_id):
+        if e.engagement_id == engagement.engagement_id:
+            continue
+        for m in repo.list_members(e.engagement_id):
+            if m.role != Role.CLIENT:
+                continue
+            entry = people.setdefault(
+                m.user_id,
+                {
+                    "user_id": m.user_id, "email": m.email, "name": m.name, "phone": m.phone,
+                    "onboarded": bool(m.name), "engagements": [], "_membership": m,
+                },
+            )
+            entry["engagements"].append(e.name)
+            # The most complete row wins: someone onboarded on a later engagement has a name
+            # there and none on the one they were first invited to.
+            if m.name and not entry["name"]:
+                entry["name"] = m.name
+                entry["onboarded"] = True
+                entry["_membership"] = m
+            if m.phone and not entry["phone"]:
+                entry["phone"] = m.phone
+    return people
+
+
+@router.get("/engagements/{engagement_id}/invitations/candidates")
+def list_invite_candidates(
+    engagement_id: str,
+    member: Membership = Depends(require_provider),
+    repo: Repository = Depends(get_repo),
+):
+    """Customer-side people on this customer's other engagements who are not on this one."""
+    engagement = repo.get_engagement(engagement_id)
+    if engagement is None:
+        raise HTTPException(404, "engagement not found")
+    already = {m.user_id for m in repo.list_members(engagement_id)}
+    candidates = [
+        {k_: v for k_, v in p.items() if k_ != "_membership"}
+        for uid, p in _customer_people(repo, engagement).items()
+        if uid not in already
+    ]
+    candidates.sort(key=lambda c: (c["name"] or c["email"]).lower())
+    return {"candidates": candidates}
+
+
+@router.post("/engagements/{engagement_id}/members", status_code=201)
+def add_member(
+    engagement_id: str,
+    body: AddMemberIn,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+):
+    """Put an existing customer-side person on this engagement — no new account, no new password."""
+    engagement = repo.get_engagement(engagement_id)
+    if engagement is None:
+        raise HTTPException(404, "engagement not found")
+    if repo.get_membership(engagement_id, body.user_id) is not None:
+        raise HTTPException(409, "this person already has access to the engagement")
+    person = _customer_people(repo, engagement).get(body.user_id)
+    if person is None:
+        # Not a rejection of a typo so much as the customer boundary: only people this customer
+        # already trusts on another engagement can be added without a fresh invitation.
+        raise HTTPException(404, "not a customer contact on this customer's engagements")
+    from ..invites import add_existing_member
+
+    try:
+        added = add_existing_member(
+            repo, engagement, person["_membership"],
+            inviter_name=principal.name or principal.email,
+        )
+    except Exception as e:  # noqa: BLE001 - surface SES failures as a clean 400
+        raise HTTPException(400, f"could not add the person: {e}") from e
+    _audit(repo, engagement_id, principal, "user_added", target=person["email"])
+    return {"membership": added}
 
 
 @router.put("/engagements/{engagement_id}/contract")

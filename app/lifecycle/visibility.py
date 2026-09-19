@@ -24,6 +24,7 @@ CLIENT_VISIBLE_ACTIONS: frozenset[str] = frozenset({
     "setup_billing",
     "billing_done",
     "user_invited",
+    "user_added",
 })
 
 
