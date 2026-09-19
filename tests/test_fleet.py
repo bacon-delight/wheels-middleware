@@ -24,7 +24,11 @@ def test_override_floors_at_one():
     assert effective_fleet_size(0, 0) == 1
 
 
-def test_billing_lock_matches_the_engagement_409():
-    assert is_locked("BILLING_SETUP") and is_locked("ACTIVE")
+def test_the_fleet_locks_at_go_live_and_not_before():
+    """Unpaid installments recompute from the current dues, so re-deriving the fleet after
+    go-live would rewrite what has already been invoiced. Before it, nothing has been."""
+    assert is_locked("ACTIVE")
+    assert not is_locked("BILLING_SETUP")
+    assert not is_locked("PENDING_BILLING_AUDIT")
     assert not is_locked("IN_UNDERWRITING")
     assert not is_locked(None)

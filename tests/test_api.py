@@ -613,3 +613,16 @@ def test_waiting_is_measured_from_the_last_move_not_the_handshake(ctx):
     assert row["created_at"].startswith("2020")
     assert row["status_since"] and not row["status_since"].startswith("2020")
     assert row["status"] == "EXTRACTING"
+
+
+def test_the_fleet_can_still_be_fixed_while_the_billing_is_audited(ctx):
+    """The fleet multiplies every recurring charge, so an audit that cannot change it cannot
+    fix the largest error there is — an engagement whose vehicles arrived late reaches the
+    audit at zero vehicles, billing nothing a month."""
+    client, repo, state = ctx
+    eid, sid, _ = _drive_to_audit(client, repo, state)
+    assert client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 40}).status_code == 200
+    body = client.get(f"/engagements/{eid}/billing", params={"submission_id": sid}).json()
+    assert body["fleet_size"] == 40
+    assert body["monthly_recurring"] == 160.0  # $4.00 x 40
+    assert all(row["amount"] == 160.0 for row in body["schedule"] if not row.get("paid_at"))

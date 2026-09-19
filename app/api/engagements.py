@@ -632,15 +632,17 @@ def update_billing_settings(
 ):
     """Override the fleet size, or clear the override to fall back to the vehicle count.
 
-    Fleet size is finalized during the approval stages; once billing is active it is locked,
-    because the payment schedule recomputes unpaid installments from the current dues.
+    Settable right up to go-live, the billing audit included — the fleet is the multiplier on
+    every recurring charge, so an audit that could not change it could not fix the largest
+    error there is. It locks once billing is live, because the schedule recomputes unpaid
+    installments from the current dues and that would rewrite what has already been invoiced.
     """
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     sub = repo.billing_submission(engagement_id)
     if sub and is_locked(sub.status.value):
-        raise HTTPException(409, "fleet size is locked once billing is active")
+        raise HTTPException(409, "fleet size is locked once billing is live")
     repo.set_fleet_override(engagement_id, body.fleet_size)
     assigned = repo.count_vehicles_for_engagement(engagement_id)
     fleet = effective_fleet_size(assigned, body.fleet_size)
