@@ -86,8 +86,14 @@ def _titles(record: dict[str, Any]) -> tuple[str, str | None]:
         # the only thing there is to call it.
         title = record.get("program")
     subtitle = record.get(subtitle_field) if subtitle_field else None
-    return (str(title or record.get("info_type") or "Untitled")[:300],
-            str(subtitle)[:300] if subtitle else None)
+    title = str(title or record.get("info_type") or "Untitled")[:300]
+    subtitle = str(subtitle)[:300] if subtitle else None
+    # A row that repeats itself tells the reader nothing twice. This happens on every pricing
+    # record that names a program without pricing anything under it: both the headline and the
+    # line beneath it fall back to the program.
+    if subtitle and subtitle.strip().casefold() == title.strip().casefold():
+        subtitle = None
+    return title, subtitle
 
 
 def needs_review_for(record: dict[str, Any], catalog_match: str | None, threshold: float) -> bool:
