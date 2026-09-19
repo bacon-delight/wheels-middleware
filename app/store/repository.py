@@ -402,10 +402,16 @@ class Repository:
         )
         return [self._load(i, ProviderUser) for i in r.get("Items", [])]
 
+    def list_all_memberships(self) -> list[Membership]:
+        """Every membership in the org. Client accounts have no directory partition of their
+        own — they exist only as membership rows — so this scan is how you find one by name."""
+        return [self._load(i, Membership) for i in self._scan_by_type("MEMBERSHIP")]
+
     def list_all_provider_memberships(self) -> list[Membership]:
         """Provider/finance memberships across all engagements (to backfill the directory)."""
-        members = [self._load(i, Membership) for i in self._scan_by_type("MEMBERSHIP")]
-        return [m for m in members if m.role in (Role.PROVIDER, Role.FINANCE)]
+        return [
+            m for m in self.list_all_memberships() if m.role in (Role.PROVIDER, Role.FINANCE)
+        ]
 
     # --- Submission ---
     def put_submission(self, s: Submission) -> Submission:

@@ -384,9 +384,23 @@ def test_existing_customer_contact_can_be_added_to_another_engagement(ctx, monke
     repo.put_membership(Membership(engagement_id=e3, user_id="beta1", email="sam@beta.com",
                                    role=Role.CLIENT, created_at=utcnow()))
 
+    # With no query the picker suggests this customer's own people, and only those.
     cands = client.get(f"/engagements/{e2}/invitations/candidates").json()["candidates"]
     assert [c["user_id"] for c in cands] == ["client9"]
     assert cands[0]["engagements"] == ["Spring lease"] and cands[0]["onboarded"] is True
+    assert cands[0]["same_customer"] is True and cands[0]["customers"] == ["Apex Pvt Ltd"]
+
+    # Searching reaches every customer-side account, each labelled with whose it is, so that
+    # adding someone from another customer is a choice rather than an accident.
+    found = client.get(
+        f"/engagements/{e2}/invitations/candidates", params={"q": "sam@"}
+    ).json()["candidates"]
+    assert [c["user_id"] for c in found] == ["beta1"]
+    assert found[0]["same_customer"] is False and found[0]["customers"] == ["Beta Corp"]
+    # A search that matches nobody says so rather than falling back to everybody.
+    assert client.get(
+        f"/engagements/{e2}/invitations/candidates", params={"q": "zzz"}
+    ).json()["candidates"] == []
 
     r = client.post(f"/engagements/{e2}/members", json={"user_id": "client9"})
     assert r.status_code == 201, r.text
@@ -400,8 +414,13 @@ def test_existing_customer_contact_can_be_added_to_another_engagement(ctx, monke
     assert client.post(f"/engagements/{e2}/members", json={"user_id": "client9"}).status_code == 409
     assert "client9" in {m["user_id"] for m in client.get(f"/engagements/{e2}").json()["members"]}
 
-    # The customer boundary holds on the write, not just in the listing.
-    assert client.post(f"/engagements/{e2}/members", json={"user_id": "beta1"}).status_code == 404
+    # Someone found by search is addable whichever customer they came from...
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "beta1"}).status_code == 201
+    # ...but Wheels staff are not customer contacts, and an unknown id is not a person.
+    repo.put_membership(Membership(engagement_id=e1, user_id="analyst7", email="a7@wheels.com",
+                                   role=Role.PROVIDER, name="Ana Lyst", created_at=utcnow()))
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "analyst7"}).status_code == 400
+    assert client.post(f"/engagements/{e2}/members", json={"user_id": "nobody"}).status_code == 404
 
     # And a customer cannot see who else the customer has.
     _as(state, Principal(user_id="client9", email="jordan@apex.com", groups=["client"]))

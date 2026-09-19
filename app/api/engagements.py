@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -22,6 +24,9 @@ from ..store.repository import Repository, new_id, utcnow
 from ..store.s3 import S3Store
 
 router = APIRouter(tags=["engagements"])
+
+# Whole-address shape, the same test the dialog uses before offering to invite what was typed.
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class CreateEngagementIn(BaseModel):
@@ -340,73 +345,138 @@ def invite_user(
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
-    from ..invites import create_and_invite
+    from ..invites import AccountIsStaff, invite_or_add
 
     try:
-        # Engagement-level invites are always client reviewers; provider staff are org-level.
-        invited = create_and_invite(
-            repo, engagement, body.email, Role.CLIENT,
+        # Engagement-level invites are always customer-side; provider staff are org-level. An
+        # address that already has an account is given access rather than refused.
+        invited, what = invite_or_add(
+            repo, engagement, body.email,
             inviter_name=principal.name or principal.email, name=body.name,
         )
+    except AccountIsStaff as e:
+        raise HTTPException(
+            400,
+            f"{e} is a Wheels team member, not a customer contact — manage staff under Users",
+        ) from e
     except Exception as e:  # noqa: BLE001 - surface Cognito/SES failures as a clean 400
         raise HTTPException(400, f"invite failed: {e}") from e
-    _audit(repo, engagement_id, principal, "user_invited", target=body.email)
-    return {"membership": invited}
+    if what == "already":
+        raise HTTPException(409, "this person already has access to the engagement")
+    _audit(
+        repo, engagement_id, principal,
+        "user_invited" if what == "invited" else "user_added", target=body.email,
+    )
+    return {"membership": invited, "outcome": what}
 
 
-def _customer_people(repo: Repository, engagement: Engagement) -> dict[str, dict]:
-    """Every customer-side person already known across this customer's engagements.
+def _client_directory(repo: Repository) -> tuple[dict[str, dict], set[str]]:
+    """Everyone the platform knows on the customer side, and the ids that are Wheels staff.
 
-    Keyed by user id, carrying the engagements each is on, so the picker can say where someone
-    already has access. Scoped to the one customer on purpose: reaching across customers would
-    put one client's staff in front of another client's contract.
+    Customer accounts have no directory partition of their own — they exist only as membership
+    rows scattered across engagements — so this folds them into one view: who someone is, which
+    engagements they are on and for which customers. It costs a scan, which is why it runs when
+    the picker is open and never on a page load.
     """
+    engagements = {e.engagement_id: e for e in repo.list_all_engagements()}
     people: dict[str, dict] = {}
-    if not engagement.customer_id:
-        return people
-    for e in repo.list_customer_engagements(engagement.customer_id):
-        if e.engagement_id == engagement.engagement_id:
+    staff: set[str] = set()
+    for m in repo.list_all_memberships():
+        if m.role != Role.CLIENT:
+            staff.add(m.user_id)
             continue
-        for m in repo.list_members(e.engagement_id):
-            if m.role != Role.CLIENT:
-                continue
-            entry = people.setdefault(
-                m.user_id,
-                {
-                    "user_id": m.user_id, "email": m.email, "name": m.name, "phone": m.phone,
-                    "onboarded": bool(m.name), "engagements": [], "_membership": m,
-                },
-            )
-            entry["engagements"].append(e.name)
-            # The most complete row wins: someone onboarded on a later engagement has a name
-            # there and none on the one they were first invited to.
-            if m.name and not entry["name"]:
-                entry["name"] = m.name
-                entry["onboarded"] = True
-                entry["_membership"] = m
-            if m.phone and not entry["phone"]:
-                entry["phone"] = m.phone
-    return people
+        entry = people.setdefault(
+            m.user_id,
+            {
+                "user_id": m.user_id, "email": m.email, "name": m.name, "phone": m.phone,
+                "onboarded": bool(m.name), "engagements": [], "customers": [],
+                "customer_ids": set(), "source": "member",
+            },
+        )
+        # The most complete row wins: someone onboarded on a later engagement has a name there
+        # and none on the one they were first invited to.
+        if m.name and not entry["name"]:
+            entry["name"], entry["onboarded"] = m.name, True
+        if m.phone and not entry["phone"]:
+            entry["phone"] = m.phone
+        e = engagements.get(m.engagement_id)
+        if e is None:
+            continue
+        entry["engagements"].append(e.name)
+        if e.client_name not in entry["customers"]:
+            entry["customers"].append(e.client_name)
+        if e.customer_id:
+            entry["customer_ids"].add(e.customer_id)
+    staff |= {pu.user_id for pu in repo.list_provider_directory()}
+    return people, staff
+
+
+def _candidate(person: dict, engagement: Engagement) -> dict:
+    """The picker's view of one person: no internals, and whether they are this customer's."""
+    same = bool(engagement.customer_id) and engagement.customer_id in person["customer_ids"]
+    return {k: v for k, v in person.items() if k != "customer_ids"} | {"same_customer": same}
 
 
 @router.get("/engagements/{engagement_id}/invitations/candidates")
 def list_invite_candidates(
     engagement_id: str,
+    q: str = "",
     member: Membership = Depends(require_provider),
     repo: Repository = Depends(get_repo),
 ):
-    """Customer-side people on this customer's other engagements who are not on this one."""
+    """People who could be given access to this engagement.
+
+    With no query, this customer's own contacts on their other engagements — the common case,
+    and no typing. With one, every customer-side account whose name or address matches,
+    whichever customer they belong to, because the person adding them knows something the
+    engagement record does not. Each row says which customer it belongs to so that choice is
+    made knowingly rather than by accident.
+    """
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     already = {m.user_id for m in repo.list_members(engagement_id)}
-    candidates = [
-        {k_: v for k_, v in p.items() if k_ != "_membership"}
-        for uid, p in _customer_people(repo, engagement).items()
-        if uid not in already
-    ]
-    candidates.sort(key=lambda c: (c["name"] or c["email"]).lower())
-    return {"candidates": candidates}
+    people, staff = _client_directory(repo)
+    needle = q.strip().lower()
+
+    rows: list[dict] = []
+    for uid, person in people.items():
+        if uid in already or uid in staff:
+            continue
+        row = _candidate(person, engagement)
+        if needle:
+            if needle not in f"{person['name'] or ''} {person['email']}".lower():
+                continue
+        elif not row["same_customer"]:
+            continue
+        rows.append(row)
+
+    # An account can exist in the pool and nowhere else — which is exactly the account an
+    # invitation collides with. A whole address finds it; a partial one cannot, since Cognito
+    # filters are prefix-only and the picker should not half-answer. The shape test keeps every
+    # keystroke of a half-typed address from costing a round trip to the pool.
+    if needle and _EMAIL.match(needle) and not any(r["email"].lower() == needle for r in rows):
+        from ..invites import find_account
+
+        account = find_account(email=needle)
+        if (
+            account
+            and not account["is_provider"]
+            and account["user_id"]
+            and account["user_id"] not in already
+            and account["user_id"] not in staff
+        ):
+            rows.append({
+                "user_id": account["user_id"], "email": account["email"],
+                "name": account["name"], "phone": account["phone"],
+                "onboarded": bool(account["name"]), "engagements": [], "customers": [],
+                "same_customer": False, "source": "account",
+            })
+
+    rows.sort(key=lambda r: (not r["same_customer"], (r["name"] or r["email"]).lower()))
+    # The cap is reported rather than silently applied: a list that stops at 25 with no word
+    # about it reads as "that is everyone".
+    return {"candidates": rows[:25], "total": len(rows), "query": q}
 
 
 @router.post("/engagements/{engagement_id}/members", status_code=201)
@@ -417,25 +487,41 @@ def add_member(
     principal: Principal = Depends(get_principal),
     repo: Repository = Depends(get_repo),
 ):
-    """Put an existing customer-side person on this engagement — no new account, no new password."""
+    """Put an existing account on this engagement — no new account, no new password."""
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
     if repo.get_membership(engagement_id, body.user_id) is not None:
         raise HTTPException(409, "this person already has access to the engagement")
-    person = _customer_people(repo, engagement).get(body.user_id)
-    if person is None:
-        # Not a rejection of a typo so much as the customer boundary: only people this customer
-        # already trusts on another engagement can be added without a fresh invitation.
-        raise HTTPException(404, "not a customer contact on this customer's engagements")
-    from ..invites import add_existing_member
 
+    people, staff = _client_directory(repo)
+    if body.user_id in staff:
+        raise HTTPException(
+            400, "that account is a Wheels team member, not a customer contact"
+        )
+    person = people.get(body.user_id)
+    from ..invites import add_existing_member, ensure_client_group, find_account
+
+    if person is None:
+        # Known to the user pool but on no engagement yet: the account exists, so it is added
+        # rather than invited, but its details have to come from the pool.
+        account = find_account(sub=body.user_id)
+        if account is None or account["is_provider"]:
+            raise HTTPException(404, "no customer account with that id")
+        ensure_client_group(account["username"])
+        person = {
+            "email": account["email"], "name": account["name"], "phone": account["phone"],
+        }
+
+    contact = Membership(
+        engagement_id=engagement_id, user_id=body.user_id, email=person["email"],
+        role=Role.CLIENT, name=person["name"], phone=person["phone"], created_at=utcnow(),
+    )
     try:
         added = add_existing_member(
-            repo, engagement, person["_membership"],
-            inviter_name=principal.name or principal.email,
+            repo, engagement, contact, inviter_name=principal.name or principal.email,
         )
-    except Exception as e:  # noqa: BLE001 - surface SES failures as a clean 400
+    except Exception as e:  # noqa: BLE001 - surface store failures as a clean 400
         raise HTTPException(400, f"could not add the person: {e}") from e
     _audit(repo, engagement_id, principal, "user_added", target=person["email"])
     return {"membership": added}

@@ -20,7 +20,9 @@ api = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
-    "moto[dynamodb]>=5.0",
+    # cognitoidp as well as dynamodb: the invite path talks to a user pool, and moto's
+    # cognito backend needs joserfc to mint its tokens.
+    "moto[dynamodb,cognitoidp]>=5.0",
     "httpx>=0.27",
 ]
 
