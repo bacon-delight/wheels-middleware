@@ -168,9 +168,11 @@ class Repository:
         """
         self.table.update_item(
             Key={"PK": k.eng_pk(engagement_id), "SK": k.engagement_meta_sk()},
-            UpdateExpression="SET #s = :s, #g = :g",
+            UpdateExpression="SET #s = :s, #g = :g, status_since = :now",
             ExpressionAttributeNames={"#s": "status", "#g": "GSI1PK"},
-            ExpressionAttributeValues={":s": status, ":g": k.lcstatus_gsi1pk(status)},
+            ExpressionAttributeValues={
+                ":s": status, ":g": k.lcstatus_gsi1pk(status), ":now": utcnow(),
+            },
         )
 
     def set_engagement_billing(

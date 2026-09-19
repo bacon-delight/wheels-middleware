@@ -48,6 +48,10 @@ class Engagement(BaseModel):
     # document has been classified.
     scope: str | None = None
     status: str = "DRAFT"  # denormalized submission lifecycle status (for lists + finance)
+    # When it last moved. Denormalized beside the status for the same reason the status is:
+    # lists need "how long has this been sitting here" without reading every submission, and
+    # created_at cannot answer it — that is the age of the deal, not of the wait.
+    status_since: str | None = None
     fleet_size: int = 100  # effective vehicles under management; drives recurring dues
     # When set, overrides the count of vehicles assigned to this engagement.
     fleet_size_override: int | None = None

@@ -586,3 +586,30 @@ def test_a_client_cannot_correct_the_billing(ctx):
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
     r = client.patch(f"/engagements/{eid}/billing/items/{item['record_id']}", json={"amount": 1.0})
     assert r.status_code == 403
+
+
+def test_waiting_is_measured_from_the_last_move_not_the_handshake(ctx):
+    """An engagement opened long ago and signed yesterday has been waiting a day.
+
+    The lifecycle board read `created_at`, so a year-old deal that moved this morning showed as
+    365 days waiting and sent somebody chasing it."""
+    client, repo, state = ctx
+    r = client.post("/engagements", json={"name": "Apex", "client_name": "Apex LLC"})
+    eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
+    # Backdate the engagement itself; the submission keeps moving in the present.
+    repo.table.update_item(
+        Key={"PK": f"ENG#{eid}", "SK": "#META"},
+        UpdateExpression="SET created_at = :c",
+        ExpressionAttributeValues={":c": "2020-01-01T00:00:00+00:00"},
+    )
+    repo.update_submission_status(
+        eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value
+    )
+
+    row = next(
+        e for e in client.get("/engagements").json()["engagements"]
+        if e["engagement_id"] == eid
+    )
+    assert row["created_at"].startswith("2020")
+    assert row["status_since"] and not row["status_since"].startswith("2020")
+    assert row["status"] == "EXTRACTING"
