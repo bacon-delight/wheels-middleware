@@ -133,9 +133,7 @@ _CALL_FOCUS: dict[str, str] = {
         "document. Emit one record per priced line, splitting a fee that differs by vehicle "
         "class into one record per class with the class in `sub_category`. Then go back through "
         "the document for programs that are named but priced nowhere, and emit a record for "
-        "each with the program name and no `item`.\n\n"
-        "Also fill `doc_meta` on this call only: the document type, the client's name, the "
-        "effective date if the document states one, payment terms, and the billing frequency."
+        "each with the program name and no `item`."
     ),
     "sla": (
         "Emit one record per service level standard, and one per fee credit or remedy owed when "
@@ -167,11 +165,23 @@ _CALL_FOCUS: dict[str, str] = {
 }
 
 
-def build_call_instruction(call: str, doc_type_hint: str | None = None) -> str:
+DOC_META_ASK = (
+    "Also fill `doc_meta`: the document type, the client's name, the effective date if the "
+    "document states one, payment terms, and the billing frequency."
+)
+
+
+def build_call_instruction(
+    call: str, doc_type_hint: str | None = None, *, want_doc_meta: bool = True
+) -> str:
     """The varying half, sent after the cache breakpoint.
 
     The document-type hint lives here rather than in the prefix. It used to sit in the header
     above the document, where it would have silently rebuilt the cache on every request.
+
+    `want_doc_meta` is asked of exactly one call. Who the parties are and when the agreement
+    takes effect are facts about the whole document, stated on its first page; asking every
+    window would invite a later one to answer from a cross-reference and overwrite the truth.
     """
     if call not in CALL_RECORD_TYPES:
         raise ValueError(f"unknown extraction call: {call!r}")
@@ -184,6 +194,8 @@ def build_call_instruction(call: str, doc_type_hint: str | None = None) -> str:
         "Be exhaustive. It is far worse to miss a record than to include an uncertain one with "
         "a low confidence.",
     ]
+    if want_doc_meta:
+        lines.append("\n" + DOC_META_ASK)
     if doc_type_hint:
         lines.append(f"\nThe document type is believed to be: {doc_type_hint}.")
     return "\n".join(lines)

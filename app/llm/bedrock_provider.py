@@ -8,20 +8,10 @@ from typing import Any
 
 from botocore.exceptions import ClientError
 
-from .base import LLMProvider, LLMResult, Tool
+from .base import LLMProvider, LLMResult, OutputOverflow, Tool
 from .pricing import price_for
 
 log = logging.getLogger(__name__)
-
-
-class OutputOverflow(Exception):
-    """The model ran out of output budget part-way through its tool call.
-
-    Anthropic reports this as `stopReason == "max_tokens"` and hands back the partial JSON.
-    Nova instead fails the request with "Model produced invalid sequence as part of ToolUse",
-    so nothing comes back at all — the same condition, a different shape, and worth its own type
-    because the answer is to ask for less, not to give up on the model.
-    """
 
 
 class BedrockProvider(LLMProvider):

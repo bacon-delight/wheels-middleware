@@ -68,6 +68,17 @@ class Settings:
     # Page render DPI for the split-screen left panel.
     render_dpi: int = field(default_factory=lambda: int(os.getenv("RENDER_DPI", "150")))
 
+    # --- Extraction ---
+    # Which Bedrock model reads a contract, and the region that serves it. They travel together:
+    # Nova is not offered in ap-south-2 at all, so a model id without its region is a runtime
+    # failure that falls through to the Anthropic API and re-bills the whole document.
+    extract_region: str = field(default_factory=lambda: os.getenv("EXTRACT_REGION", ""))
+    # How many model calls run at once. Six when a model answers a category in one response;
+    # twenty-five or more when the answers have to be asked for in windows.
+    extract_max_concurrency: int = field(
+        default_factory=lambda: int(os.getenv("EXTRACT_MAX_CONCURRENCY", "6"))
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

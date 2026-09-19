@@ -18,12 +18,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import Settings, get_settings
-from ..llm.base import LLMProvider, LLMResult
-from ..llm.pricing import cost_usd, uncached_cost_usd
+from ..llm.base import CLEAN_STOP_REASONS, LLMProvider, LLMResult, OutputOverflow
+from ..llm.pricing import cost_usd, price_for, uncached_cost_usd
 from ..llm.tools import CONTRACT_TOOL
 from ..ocr.base import DocumentParse, OCREngine, Source
 from ..ocr.citations import resolve as resolve_citation
 from ..ocr.pymupdf_engine import PyMuPDFEngine
+from .merge import merge_records
 from .prompts import SYSTEM_PROMPT, build_call_instruction, build_document_prefix
 from .schema import (
     SCHEMA_VERSION,
@@ -33,6 +34,7 @@ from .schema import (
     DocumentMeta,
     parse_records,
 )
+from .windows import Window, windows_for_output
 
 log = logging.getLogger(__name__)
 
@@ -78,10 +80,31 @@ class CallTelemetry:
     latency_ms: int | None = None
     cost_usd: float | None = None
     error: str | None = None
+    # Which slice of the contract this call read. Window 0 covering the whole document is the
+    # unwindowed case, which is what a model with room for the whole answer still does.
+    window: int = 0
+    pages: tuple[int, int] | None = None
+    max_output_tokens: int | None = None
+    salvaged: bool = False
+    # The model ran out of room mid-answer and returned nothing. Distinct from a failure,
+    # because the remedy is a smaller window rather than a different model.
+    overflowed: bool = False
 
     @property
     def truncated(self) -> bool:
-        return self.stop_reason == "max_tokens"
+        """Did this call come back cut off?
+
+        Mirrors LLMResult.truncated rather than matching one provider's word for it: an
+        unrecognised stop reason, an answer that used its whole budget, a tail the parser had to
+        rescue, or an overflow that returned nothing at all.
+        """
+        if self.overflowed or self.salvaged:
+            return True
+        if self.stop_reason and self.stop_reason.lower() not in CLEAN_STOP_REASONS:
+            return True
+        if self.max_output_tokens and (self.output_tokens or 0) >= self.max_output_tokens - 32:
+            return True
+        return False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -97,6 +120,8 @@ class CallTelemetry:
             "latency_ms": self.latency_ms,
             "cost_usd": self.cost_usd,
             "error": self.error,
+            "window": self.window,
+            "pages": list(self.pages) if self.pages else None,
         }
 
 
@@ -221,22 +246,99 @@ def _collect_flags(extraction: ContractExtraction, threshold: float) -> list[Fie
     return flags
 
 
+# What each category writes, per page of contract, measured over the four real runs in dev. Used
+# only to decide how many windows a category needs — a rough number is enough, because the fill
+# factor leaves room and an overflow is caught and retried.
+_OUTPUT_PER_PAGE: dict[str, int] = {
+    "misc_operational": 545,
+    "definitions": 367,
+    "pricing": 236,
+    "misc_reference": 156,
+    "sla": 122,
+    "reporting": 114,
+}
+
+# Windowing exists to fit an answer inside a model's ceiling. A category whose whole answer fits
+# is asked once, over the whole document, exactly as it always was.
+_DEFAULT_OUTPUT_CAP = 64000
+
+
+@dataclass(frozen=True)
+class _Job:
+    """One category asked of one window."""
+
+    call: str
+    window: Window
+    want_doc_meta: bool = False
+
+
+def _output_cap(provider: LLMProvider) -> int:
+    model = getattr(provider, "model_id", None)
+    price = price_for(model) if model else None
+    return price.max_output_tokens if price else _DEFAULT_OUTPUT_CAP
+
+
+def _plan_calls(provider: LLMProvider, parse: DocumentParse, wanted: list[str]) -> list[_Job]:
+    """Which categories get asked of which slices of the document.
+
+    Each category is windowed on its own. `sla` and `reporting` answer in a few thousand tokens
+    for a whole contract and are never split; the responsibilities run to twenty-four thousand
+    and are split as many ways as the model's ceiling demands. Sizing them together would cut
+    the short categories up for no reason, and every extra boundary is a chance to separate a
+    clause from its context.
+    """
+    cap = _output_cap(provider)
+    jobs: list[_Job] = []
+    for call in wanted:
+        expected = _OUTPUT_PER_PAGE.get(call, 300) * max(1, parse.page_count)
+        windows = windows_for_output(parse.pages, expected, cap)
+        for window in windows:
+            # The parties and the effective date are on page one; only the window holding it is
+            # asked, so a later window cannot answer from a cross-reference and overwrite them.
+            first = window.index == 0 and call == CACHE_PRIMING_CALL
+            jobs.append(_Job(call=call, window=window, want_doc_meta=first))
+    if not any(j.want_doc_meta for j in jobs) and jobs:
+        jobs[0] = _Job(call=jobs[0].call, window=jobs[0].window, want_doc_meta=True)
+    return jobs
+
+
+def _priming_order(plan: list[_Job]) -> list[_Job]:
+    """Put the cache-priming call first; the rest follow and read what it wrote."""
+    primer = [j for j in plan if j.call == CACHE_PRIMING_CALL]
+    others = [j for j in plan if j.call != CACHE_PRIMING_CALL]
+    return primer + others if primer else plan
+
+
 def _run_call(
     provider: LLMProvider,
     call: str,
     prefix: str,
     doc_type_hint: str | None,
+    *,
+    window: int = 0,
+    pages: tuple[int, int] | None = None,
+    want_doc_meta: bool = True,
 ) -> tuple[CallTelemetry, dict[str, Any] | None]:
-    """One category. A failure here costs this category and no other."""
-    telemetry = CallTelemetry(call=call)
+    """One category over one window. A failure here costs that, and nothing else."""
+    telemetry = CallTelemetry(call=call, window=window, pages=pages)
     try:
         result: LLMResult = provider.call_tool(
             system=SYSTEM_PROMPT,
             cache_prefix=prefix,
-            user_text=build_call_instruction(call, doc_type_hint=doc_type_hint),
+            user_text=build_call_instruction(
+                call, doc_type_hint=doc_type_hint, want_doc_meta=want_doc_meta
+            ),
             tool=CONTRACT_TOOL,
             max_tokens=CALL_BUDGET.get(call, 12000),
         )
+    except OutputOverflow as e:
+        # Not a failure of the model but of the ask: it ran out of room part-way through the
+        # tool call. Named separately so the caller can split the window and try again rather
+        # than write the category off.
+        telemetry.error = f"OutputOverflow: {e}"
+        telemetry.overflowed = True
+        log.warning("extraction call %s window %s overflowed its output budget", call, window)
+        return telemetry, None
     except Exception as e:  # noqa: BLE001 - one category failing must not lose the others
         telemetry.error = f"{type(e).__name__}: {e}"
         log.warning("extraction call %s failed: %s", call, telemetry.error)
@@ -249,6 +351,8 @@ def _run_call(
     telemetry.cache_write_tokens = result.cache_write_tokens
     telemetry.stop_reason = result.stop_reason
     telemetry.latency_ms = result.latency_ms
+    telemetry.max_output_tokens = result.max_output_tokens
+    telemetry.salvaged = result.salvaged
     telemetry.cost_usd = cost_usd(
         result.model,
         input_tokens=result.input_tokens,
@@ -285,41 +389,61 @@ def extract_contract(
 
         provider = get_provider(settings)
 
-    prefix = build_document_prefix(parse)
     wanted = list(calls or CALL_BUDGET.keys())
+    plan = _plan_calls(provider, parse, wanted)
+    windows = {job.window.index for job in plan}
+    if len(windows) > 1:
+        log.info(
+            "extracting %s pages in %s windows, %s calls",
+            parse.page_count, len(windows), len(plan),
+        )
+
+    # One prefix per window, built once and shared by every call that reads that window — which
+    # is what lets the cache be written once and read by the rest.
+    prefixes = {
+        job.window.index: build_document_prefix(job.window.pages, of_pages=parse.page_count)
+        for job in plan
+    }
 
     telemetry: list[CallTelemetry] = []
-    payloads: list[dict[str, Any]] = []
+    payloads: list[tuple[CallTelemetry, dict[str, Any]]] = []
 
-    # Prime the cache with one call before fanning out, or all five miss.
-    ordered = (
-        [CACHE_PRIMING_CALL] + [c for c in wanted if c != CACHE_PRIMING_CALL]
-        if CACHE_PRIMING_CALL in wanted
-        else wanted
-    )
-    first, rest = ordered[0], ordered[1:]
+    def run(job: _Job) -> tuple[CallTelemetry, dict[str, Any] | None]:
+        return _run_call(
+            provider, job.call, prefixes[job.window.index], doc_type_hint,
+            window=job.window.index,
+            pages=(job.window.first_page, job.window.last_page),
+            want_doc_meta=job.want_doc_meta,
+        )
 
-    t, data = _run_call(provider, first, prefix, doc_type_hint)
-    telemetry.append(t)
-    if data is not None:
-        payloads.append(data)
+    # With one window there is one cached prefix, so a single call is run first to write it and
+    # the rest read it. With many, every window is its own entry and there is nothing to prime:
+    # a serial first call would just be a slower start.
+    ordered = _priming_order(plan) if len(windows) == 1 else plan
+    if len(windows) == 1:
+        first, rest = ordered[0], ordered[1:]
+        t, data = run(first)
+        telemetry.append(t)
+        if data is not None:
+            payloads.append((t, data))
+    else:
+        first, rest = None, ordered
 
     if rest:
-        with ThreadPoolExecutor(max_workers=min(5, len(rest))) as pool:
-            for t, data in pool.map(
-                lambda c: _run_call(provider, c, prefix, doc_type_hint), rest
-            ):
+        workers = max(1, min(settings.extract_max_concurrency, len(rest)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for t, data in pool.map(run, rest):
                 telemetry.append(t)
                 if data is not None:
-                    payloads.append(data)
+                    payloads.append((t, data))
 
-    records: list[Any] = []
+    raw_records: list[dict[str, Any]] = []
     invalid: list[str] = []
     doc_meta = DocumentMeta()
-    for payload, tel in zip(payloads, [x for x in telemetry if x.error is None], strict=False):
+    for tel, payload in payloads:
         good, bad = parse_records(payload.get("records") or [])
         tel.records = len(good)
-        records.extend(good)
+        raw_records.extend(r.model_dump(mode="json") for r in good)
         invalid.extend(bad)
         raw_meta = payload.get("doc_meta")
         if raw_meta:
@@ -330,6 +454,13 @@ def extract_contract(
                 doc_meta = DocumentMeta.model_validate(merged)
             except Exception as e:  # noqa: BLE001 - meta is a bonus, records are the point
                 invalid.append(f"doc_meta: {type(e).__name__}: {e}")
+
+    # Overlapping windows read some terms twice. Folding them back here rather than downstream
+    # keeps the stored extraction, the record counts and the telemetry describing one document
+    # rather than the sum of its windows.
+    merged_records, merge_report = merge_records(raw_records)
+    records, still_bad = parse_records(merged_records)
+    invalid.extend(still_bad)
 
     extraction = ContractExtraction(doc_meta=doc_meta, records=records)
     resolved, total = resolve_all_citations(extraction, parse)

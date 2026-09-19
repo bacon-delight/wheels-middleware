@@ -16,8 +16,18 @@ class Tool:
     input_schema: dict[str, Any]
 
 
+class OutputOverflow(Exception):
+    """The model ran out of output budget part-way through its tool call.
+
+    Anthropic reports this as `stop_reason == "max_tokens"` and hands back the partial JSON.
+    Nova instead fails the request outright, so nothing comes back at all — the same condition
+    in a different shape, and worth its own type because the answer is to ask for less rather
+    than to give up on the model.
+    """
+
+
 # What a finished answer looks like across providers. Anything else is suspect by construction.
-_CLEAN_STOPS = {"end_turn", "tool_use", "stop_sequence", "stop", "complete"}
+CLEAN_STOP_REASONS = {"end_turn", "tool_use", "stop_sequence", "stop", "complete"}
 
 
 @dataclass
@@ -62,7 +72,7 @@ class LLMResult:
         mark every call truncated and the flag would mean nothing. Those are caught by the
         budget test below, which needs no cooperation from the provider at all.
         """
-        if self.stop_reason and self.stop_reason.lower() not in _CLEAN_STOPS:
+        if self.stop_reason and self.stop_reason.lower() not in CLEAN_STOP_REASONS:
             return True
         # Budget exhausted to the last few tokens: cut off whatever the stop reason claims.
         if self.max_output_tokens and (self.output_tokens or 0) >= self.max_output_tokens - 32:
