@@ -25,7 +25,6 @@ _ROUTES: dict[str, list[tuple[str, list[Role]]]] = {
     # Billing now exists by the time anyone is asked to look, so the alert that matters is
     # "there is a breakdown to audit", not "terms were captured".
     "billing_ready": [("BILLING_AUDIT_NEEDED", _PROVIDER)],
-    "audit_request_changes": [("AUDIT_CHANGES_REQUESTED", _PROVIDER)],
     "sanity_fail": [("VALIDATION_FAILED", _PROVIDER)],
     "approve_billing": [
         ("BILLING_ACTIVE_CLIENT", [Role.CLIENT]),

@@ -427,32 +427,3 @@ def approve_billing(
     return {"submission": updated, "status": updated.status.value}
 
 
-@router.post("/engagements/{engagement_id}/submissions/{submission_id}:reopen")
-def reopen(
-    engagement_id: str, submission_id: str, body: CommentIn,
-    member: Membership = Depends(membership_dep),
-    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
-):
-    """Take a cycle the audit sent back into review so the terms can be corrected.
-
-    Without this the audit's only outcome is approval: a cycle sent back had no way forward,
-    could not be extracted again, and sat there for ever. That was true of the finance step
-    this replaces — the transition existed and nothing ever called it.
-    """
-    sub = _load(repo, engagement_id, submission_id)
-    return {"submission": _apply(repo, principal, member, sub, Action.REOPEN, body.comment)}
-
-
-@router.post("/engagements/{engagement_id}/submissions/{submission_id}:audit-request-changes")
-def audit_request_changes(
-    engagement_id: str, submission_id: str, body: CommentIn,
-    member: Membership = Depends(membership_dep),
-    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
-):
-    """The billing audit finds a problem and sends the terms back to be corrected."""
-    sub = _load(repo, engagement_id, submission_id)
-    return {
-        "submission": _apply(
-            repo, principal, member, sub, Action.AUDIT_REQUEST_CHANGES, body.comment
-        )
-    }

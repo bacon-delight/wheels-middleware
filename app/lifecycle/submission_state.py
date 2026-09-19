@@ -34,7 +34,6 @@ class SubmissionStatus(str, Enum):
     CLIENT_APPROVED = "CLIENT_APPROVED"
     BILLING_SETUP = "BILLING_SETUP"
     PENDING_BILLING_AUDIT = "PENDING_BILLING_AUDIT"
-    CHANGES_REQUESTED_AUDIT = "CHANGES_REQUESTED_AUDIT"
     ACTIVE = "ACTIVE"
 
 
@@ -87,8 +86,6 @@ class Action(str, Enum):
     CAPTURE_FIELDS = "capture_fields"  # system: freeze approved terms, start billing setup
     BILLING_READY = "billing_ready"  # system: billing config generated, ready to be audited
     APPROVE_BILLING = "approve_billing"  # the audit passes and the engagement goes live
-    AUDIT_REQUEST_CHANGES = "audit_request_changes"
-    REOPEN = "reopen"  # analyst reopens after the audit sends it back
 
 
 # Role sets. PROVIDER is included wherever FINANCE is, because finance is folded into the
@@ -133,13 +130,6 @@ TRANSITIONS: tuple[Transition, ...] = (
     # The audit reads the billing that was actually generated, which is why it sits here and
     # not before setup: approving terms tells you what should be billed, not what will be.
     Transition(A.APPROVE_BILLING, S.PENDING_BILLING_AUDIT, S.ACTIVE, _FINANCE),
-    Transition(
-        A.AUDIT_REQUEST_CHANGES,
-        S.PENDING_BILLING_AUDIT,
-        S.CHANGES_REQUESTED_AUDIT,
-        _FINANCE,
-    ),
-    Transition(A.REOPEN, S.CHANGES_REQUESTED_AUDIT, S.IN_UNDERWRITING, _PROVIDER),
 )
 
 
@@ -179,7 +169,6 @@ STAGE_OF: dict[SubmissionStatus, Stage] = {
     S.CLIENT_APPROVED: Stage.REVIEW,
     S.BILLING_SETUP: Stage.BILLING_SETUP,
     S.PENDING_BILLING_AUDIT: Stage.BILLING_AUDIT,
-    S.CHANGES_REQUESTED_AUDIT: Stage.BILLING_AUDIT,
     S.ACTIVE: Stage.ACTIVE,
 }
 

@@ -42,13 +42,12 @@ class FieldPatchIn(BaseModel):
     notes: str | None = None
 
 
-# When an upload can join the cycle in play. Mid-review the terms are with the customer or
-# finance and a document arriving underneath them would change what they are looking at; once
-# the cycle has completed, the deal is signed and billing, so a new agreement belongs to an
-# amendment rather than to the cycle that closed.
+# When an upload can join the cycle in play. Mid-review the terms are with the customer and a
+# document arriving underneath them would change what they are looking at; from billing setup
+# onwards the deal is signed, so a new agreement belongs to an amendment rather than to the
+# cycle that closed.
 _UPLOADABLE_STATUSES = {
-    "DRAFT", "IN_UNDERWRITING", "VALIDATION_FAILED",
-    "CHANGES_REQUESTED_CLIENT", "CHANGES_REQUESTED_AUDIT",
+    "DRAFT", "IN_UNDERWRITING", "VALIDATION_FAILED", "CHANGES_REQUESTED_CLIENT",
 }
 
 

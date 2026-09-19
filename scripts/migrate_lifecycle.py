@@ -10,7 +10,9 @@ The mapping, and why:
                                                 to look; now what they look at is the billing,
                                                 so it has to be generated first
     FINANCE_APPROVED         -> BILLING_SETUP   approved-but-not-yet-billed is the same place
-    CHANGES_REQUESTED_FINANCE-> CHANGES_REQUESTED_AUDIT   the same rejection, renamed
+    CHANGES_REQUESTED_FINANCE-> IN_UNDERWRITING          the audit corrects billing in place
+                                                        now, so there is no rejected state to
+                                                        land in; the terms go back to review
 
 Anything that lands in BILLING_SETUP then has its billing built, which carries it on to
 PENDING_BILLING_AUDIT where a person can actually act on it. A row left in BILLING_SETUP with no
@@ -35,7 +37,7 @@ from app.store.repository import Repository, utcnow  # noqa: E402
 RETIRED = {
     "PENDING_FINANCE_APPROVAL": "BILLING_SETUP",
     "FINANCE_APPROVED": "BILLING_SETUP",
-    "CHANGES_REQUESTED_FINANCE": "CHANGES_REQUESTED_AUDIT",
+    "CHANGES_REQUESTED_FINANCE": "IN_UNDERWRITING",
 }
 
 

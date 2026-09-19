@@ -95,14 +95,14 @@ def test_string_inputs_are_accepted():
     assert transition("DRAFT", "submit_for_processing", "provider") == SubmissionStatus.EXTRACTING
 
 
-def test_the_audit_can_send_a_cycle_back_and_it_can_come_forward_again():
-    """The old finance step had no way out: the transition existed and nothing called it, so a
-    cycle it rejected sat in that status for ever, refusing extraction and every other move."""
+def test_the_audit_has_one_way_out():
+    """The audit corrects the billing where it stands, so approving is the only move it makes.
+
+    A "send it back" would mean days of round trip to change a number the auditor is already
+    looking at, and it left a status behind that nothing could act on."""
     s = SubmissionStatus.PENDING_BILLING_AUDIT
-    s = transition(s, Action.AUDIT_REQUEST_CHANGES, Role.PROVIDER)
-    assert s == SubmissionStatus.CHANGES_REQUESTED_AUDIT
-    s = transition(s, Action.REOPEN, Role.PROVIDER)
-    assert s == SubmissionStatus.IN_UNDERWRITING
+    assert allowed_actions(s, Role.PROVIDER) == [Action.APPROVE_BILLING]
+    assert transition(s, Action.APPROVE_BILLING, Role.PROVIDER) == SubmissionStatus.ACTIVE
 
 
 def test_every_status_belongs_to_exactly_one_step():
@@ -138,4 +138,4 @@ def test_a_signed_contract_reaches_the_audit_without_anybody_pressing_anything()
     s = transition(s, Action.BILLING_READY, Role.SYSTEM)
     assert s == SubmissionStatus.PENDING_BILLING_AUDIT
     # And the only human action between signing and going live is the audit itself.
-    assert allowed_actions(s, Role.PROVIDER) == [Action.APPROVE_BILLING, Action.AUDIT_REQUEST_CHANGES]
+    assert allowed_actions(s, Role.PROVIDER) == [Action.APPROVE_BILLING]

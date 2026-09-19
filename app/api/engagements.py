@@ -16,6 +16,7 @@ from ..lifecycle.submission_state import (
     STAGE_LABELS,
     Role,
     Stage,
+    SubmissionStatus,
     stage_of,
 )
 from ..lifecycle.visibility import visible_actions
@@ -297,9 +298,7 @@ def get_audit(
 
 # Once billing has been generated there is a schedule to show — including while it is being
 # audited, which is the whole point of the audit: what the customer will actually be invoiced.
-_SCHEDULED_STATUSES = (
-    "BILLING_SETUP", "PENDING_BILLING_AUDIT", "CHANGES_REQUESTED_AUDIT", "ACTIVE",
-)
+_SCHEDULED_STATUSES = ("BILLING_SETUP", "PENDING_BILLING_AUDIT", "ACTIVE")
 
 
 @router.get("/engagements/{engagement_id}/billing")
@@ -665,3 +664,111 @@ def update_billing_settings(
         "fleet_size_source": fleet_source(body.fleet_size),
         "monthly_recurring": monthly,
     }
+
+
+class BillingItemPatch(BaseModel):
+    """A correction made during the billing audit.
+
+    Amount and kind only. The auditor is settling what will be charged, not rewriting the
+    contract: the clause, its wording and its citation are left exactly as read.
+    """
+
+    amount: float | None = None
+    billing_class: str | None = None
+
+
+_CORRECTABLE_CLASSES = frozenset(
+    {"recurring", "recurring_per_driver", "usage", "one_time", "credit"}
+)
+
+
+@router.patch("/engagements/{engagement_id}/billing/items/{record_id}")
+def correct_billing_item(
+    engagement_id: str,
+    record_id: str,
+    body: BillingItemPatch,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
+):
+    """Correct one charge while the billing is being audited, and reflow what it bills.
+
+    The audit's job is to make the billing right, so it fixes the charge here rather than
+    sending the whole engagement back to be re-read — a round trip that cost days to change a
+    number somebody was already looking at.
+
+    The correction is stored beside the extraction rather than over it. The term keeps the
+    amount it was read as having and the citation that proves it, and gains an override that
+    billing honours; the screen can then show both, which is what makes a correction auditable
+    rather than a quiet edit.
+    """
+    from ..billing.config_builder import build_billing_config
+    from ..billing.estimate import compute_monthly_recurring
+
+    sub = repo.billing_submission(engagement_id)
+    if sub is None or sub.status.value != SubmissionStatus.PENDING_BILLING_AUDIT.value:
+        raise HTTPException(409, "billing can only be corrected while it is being audited")
+    if body.billing_class is not None and body.billing_class not in _CORRECTABLE_CLASSES:
+        raise HTTPException(422, f"unknown billing class {body.billing_class!r}")
+
+    found = None
+    for document_id in sub.docs().values():
+        doc = repo.get_document(engagement_id, document_id)
+        if doc is None:
+            continue
+        for term in repo.list_terms(engagement_id, document_id, doc.current_version, "pricing"):
+            if term.record_id == record_id and not term.superseded:
+                found = term
+                break
+        if found is not None:
+            break
+    if found is None:
+        raise HTTPException(404, "no such charge on the billing under audit")
+
+    record = dict(found.record or {})
+    override = dict(record.get("billing_override") or {})
+    before = {
+        "amount": override.get("amount", record.get("amount")),
+        "billing_class": override.get("billing_class"),
+    }
+    if body.amount is not None:
+        override["amount"] = body.amount
+    if body.billing_class is not None:
+        override["billing_class"] = body.billing_class
+    override["by"] = member.name or principal.name or principal.email
+    override["at"] = utcnow()
+    record["billing_override"] = override
+    found.record = record
+    found.corrected = True
+    found.updated_at = utcnow()
+    repo.put_terms([found])
+
+    config = build_billing_config(engagement_id=engagement_id, repo=repo,
+                                  submission_id=sub.submission_id, s3=s3)
+    engagement = repo.get_engagement(engagement_id)
+    fleet = engagement.fleet_size if engagement else 0
+    repo.set_engagement_billing(engagement_id, fleet, compute_monthly_recurring(config, fleet))
+
+    repo.put_audit(
+        AuditEvent(
+            engagement_id=engagement_id, event_id=new_id(), ts=utcnow(),
+            actor_id=principal.user_id, actor_role=member.role.value,
+            actor_name=member.name or principal.name,
+            action="billing_corrected", target=record_id,
+            comment=(
+                f"{found.title}: "
+                + ", ".join(
+                    filter(None, [
+                        f"amount {before['amount']} -> {body.amount}"
+                        if body.amount is not None and body.amount != before["amount"] else None,
+                        f"billed as {before['billing_class'] or 'read'} -> {body.billing_class}"
+                        if body.billing_class is not None
+                        and body.billing_class != before["billing_class"] else None,
+                    ])
+                )
+                or "no change"
+            ),
+        )
+    )
+    return get_billing(engagement_id, sub.submission_id, member, repo, s3)

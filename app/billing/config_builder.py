@@ -10,10 +10,23 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
+from ..extraction.schema import UnitBasis
 from ..objects import billing_config_key
 from ..store.models import Engagement, Payment
 from ..store.repository import Repository, utcnow
+from .frequency import CREDIT, ONE_TIME, PER_DRIVER, RECURRING, USAGE
 from .schedule import generate_rows, normalize_frequency
+
+# What a charge bills on, once somebody has said what kind of charge it is. The auditor picks
+# the kind; the basis follows from it, because the basis is what the estimate keys on and a
+# pair that disagree would bill one thing and display another.
+_BASIS_FOR_CLASS: dict[str, str] = {
+    RECURRING: UnitBasis.PER_VEHICLE_PER_MONTH.value,
+    PER_DRIVER: UnitBasis.PER_DRIVER_PER_MONTH.value,
+    ONE_TIME: UnitBasis.ONE_TIME.value,
+    USAGE: UnitBasis.PER_TRANSACTION.value,
+    CREDIT: UnitBasis.PERCENT_OF_PROCEEDS.value,
+}
 
 
 def _fee_item(record: dict[str, Any]) -> dict[str, Any] | None:
@@ -21,12 +34,32 @@ def _fee_item(record: dict[str, Any]) -> dict[str, Any] | None:
 
     The unit basis is derived from the contract's own frequency wording rather than trusted
     from the model, because that one field decides whether a charge enters recurring dues.
+
+    An override set during the billing audit wins over both. It is kept beside the reading
+    rather than written over it: the citation still points at what the contract says, and the
+    screen can show that the two differ, which is the whole reason somebody looked.
     """
     from .frequency import classify
 
     found = classify(record.get("frequency"), record.get("calculation"))
     amount = record.get("amount")
     tiers = record.get("tier_bands") or []
+    unit_basis, billing_class = found.unit_basis, found.billing_class
+
+    override = record.get("billing_override") or {}
+    corrected_fields = []
+    if "amount" in override:
+        if override["amount"] != amount:
+            corrected_fields.append("amount")
+        amount = override["amount"]
+    if override.get("billing_class"):
+        if override["billing_class"] != billing_class:
+            corrected_fields.append("billing_class")
+        billing_class = override["billing_class"]
+        # Only the auditor's own basis survives; keeping the contract's would leave a charge
+        # called recurring that the estimate refuses to count.
+        unit_basis = _BASIS_FOR_CLASS.get(billing_class, unit_basis)
+
     if amount is None and not tiers and record.get("rate_pct") is None:
         return None  # a program named with nothing priced under it bills nothing
     return {
@@ -35,12 +68,16 @@ def _fee_item(record: dict[str, Any]) -> dict[str, Any] | None:
         "amount": amount,
         "currency": record.get("currency") or "USD",
         "rate_pct": record.get("rate_pct"),
-        "unit_basis": found.unit_basis,
-        "billing_class": found.billing_class,
+        "unit_basis": unit_basis,
+        "billing_class": billing_class,
         "minimum": record.get("minimum"),
         "maximum": record.get("maximum"),
         "tier_bands": tiers,
         "conditions": record.get("conditions") or [],
+        # What the contract was read as saying, so a correction is visible rather than a
+        # number that silently disagrees with the clause beside it.
+        "corrected": corrected_fields,
+        "as_read": {"amount": record.get("amount"), "billing_class": found.billing_class},
     }
 
 

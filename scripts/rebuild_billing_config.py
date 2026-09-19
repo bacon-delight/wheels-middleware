@@ -26,7 +26,7 @@ from app.billing.estimate import compute_monthly_recurring  # noqa: E402
 from app.store.repository import Repository  # noqa: E402
 from app.store.s3 import S3Store  # noqa: E402
 
-AUDIT_STATUSES = ("BILLING_SETUP", "PENDING_BILLING_AUDIT", "CHANGES_REQUESTED_AUDIT")
+AUDIT_STATUSES = ("BILLING_SETUP", "PENDING_BILLING_AUDIT")
 
 
 def main() -> int:

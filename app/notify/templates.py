@@ -153,17 +153,6 @@ TEMPLATES: dict[str, dict] = {
         "cta": ("Audit the billing", "audit_url"),
         "text": "Billing for {engagement_name} is generated and needs auditing at {audit_url}",
     },
-    "AUDIT_CHANGES_REQUESTED": {
-        "recipients": ["provider", "analyst"],
-        "subject": "{engagement_name}: the billing audit found a problem",
-        "heading": "The billing audit sent this back",
-        "intro": "Hello {recipient_name},<br><br>The billing for <strong>{engagement_name}"
-        "</strong> was audited and something needs correcting before the engagement goes live.",
-        "detail": "The comments:<br><br><em>{comments}</em>",
-        "cta": ("Open engagement", "engagement_url"),
-        "text": "The billing audit on {engagement_name} requested changes: {comments}. "
-        "Open at {engagement_url}",
-    },
     "TERMS_RESUBMITTED": {
         "recipients": ["client"],
         "subject": "{engagement_name}: the provider responded to your request",

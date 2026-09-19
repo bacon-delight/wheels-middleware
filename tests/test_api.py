@@ -514,3 +514,75 @@ def test_billing_audit_reads_the_cycle_under_audit_not_the_one_in_force(ctx):
     assert client.get(
         f"/engagements/{eid}/billing", params={"submission_id": new_sid}
     ).json()["status"] == "DRAFT"
+
+
+def test_the_audit_corrects_a_charge_in_place_and_the_billing_follows(ctx):
+    """A misread amount is fixed where it is seen, and everything downstream reflows."""
+    client, repo, state = ctx
+    eid, sid, did = _drive_to_audit(client, repo, state)
+    before = client.get(f"/engagements/{eid}/billing", params={"submission_id": sid}).json()
+    assert before["monthly_recurring"] == 400.0  # $4.00 x 100
+    item = next(i for i in before["config"]["pricing_items"] if i["item"] == "Fuel Fee")
+
+    r = client.patch(f"/engagements/{eid}/billing/items/{item['record_id']}", json={"amount": 3.5})
+    assert r.status_code == 200
+    after = r.json()
+
+    fixed = next(i for i in after["config"]["pricing_items"] if i["item"] == "Fuel Fee")
+    assert fixed["amount"] == 3.5
+    # The reading is kept beside the correction: the citation still proves what the contract
+    # said, and the screen can show that the two differ.
+    assert fixed["as_read"]["amount"] == 4.0
+    assert fixed["corrected"] == ["amount"]
+    assert fixed["citations"] == item["citations"]
+    # And what will actually be charged has moved with it, schedule included.
+    assert after["monthly_recurring"] == 350.0
+    assert all(row["amount"] == 350.0 for row in after["schedule"] if not row.get("paid_at"))
+
+    # It survives a rebuild, because the override lives on the term rather than on the config.
+    again = client.get(f"/engagements/{eid}/billing", params={"submission_id": sid}).json()
+    assert again["monthly_recurring"] == 350.0
+
+    # Approving takes it live at the corrected figure.
+    assert client.post(
+        f"/engagements/{eid}/submissions/{sid}:approve-billing"
+    ).json()["submission"]["status"] == "ACTIVE"
+    assert repo.get_engagement(eid).monthly_recurring == 350.0
+
+
+def test_the_audit_can_move_a_charge_out_of_recurring(ctx):
+    """"Billed per vehicle per month" read off a clause that meant per claim is the error that
+    matters most: it multiplies by the fleet."""
+    client, repo, state = ctx
+    eid, sid, _ = _drive_to_audit(client, repo, state)
+    item = next(
+        i for i in client.get(f"/engagements/{eid}/billing", params={"submission_id": sid})
+        .json()["config"]["pricing_items"] if i["item"] == "Fuel Fee"
+    )
+    after = client.patch(
+        f"/engagements/{eid}/billing/items/{item['record_id']}", json={"billing_class": "usage"}
+    ).json()
+    moved = next(i for i in after["config"]["pricing_items"] if i["item"] == "Fuel Fee")
+    assert moved["billing_class"] == "usage"
+    # The basis has to move with the class, or the estimate would keep counting it.
+    assert "per_vehicle_per_month" not in moved["unit_basis"]
+    assert after["monthly_recurring"] == 0.0
+
+
+def test_billing_cannot_be_corrected_once_it_is_live(ctx):
+    """After go-live the figures are what a customer is being invoiced against."""
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    item = client.get(f"/engagements/{eid}/billing").json()["config"]["pricing_items"][0]
+    r = client.patch(f"/engagements/{eid}/billing/items/{item['record_id']}", json={"amount": 1.0})
+    assert r.status_code == 409
+
+
+def test_a_client_cannot_correct_the_billing(ctx):
+    client, repo, state = ctx
+    eid, sid, _ = _drive_to_audit(client, repo, state)
+    item = client.get(f"/engagements/{eid}/billing",
+                      params={"submission_id": sid}).json()["config"]["pricing_items"][0]
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    r = client.patch(f"/engagements/{eid}/billing/items/{item['record_id']}", json={"amount": 1.0})
+    assert r.status_code == 403
