@@ -27,13 +27,12 @@ COMM_ACTIONS = {
     "resubmit_to_client": "Provider responded & resubmitted",
     "reupload": "Provider re-uploaded revised terms",
     "client_approve": "Client approved terms",
-    "finance_request_changes": "Finance requested changes",
-    "finance_approve": "Finance approved",
-    "setup_billing": "Billing set up",
-    "billing_done": "Billing active",
+    "audit_request_changes": "Billing audit requested changes",
+    "billing_ready": "Billing generated",
+    "approve_billing": "Billing audit approved — engagement live",
 }
 # Comments only the provider side should see in the summary/thread.
-_INTERNAL_ACTIONS = {"finance_request_changes"}
+_INTERNAL_ACTIONS = {"audit_request_changes"}
 
 
 # --- fee formatting (mirrors the UI's feeLine so prompts read like the app) ---

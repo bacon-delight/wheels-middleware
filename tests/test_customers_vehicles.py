@@ -471,7 +471,7 @@ def test_a_customer_sees_only_their_side_of_the_activity_trail(ctx):  # noqa: F8
     repo.put_membership(Membership(
         engagement_id=eid, user_id="c1", email="c@x.com", role=Role.CLIENT, created_at=utcnow(),
     ))
-    for action in ("submit_to_client", "field_approved", "finance_approve",
+    for action in ("submit_to_client", "field_approved", "audit_request_changes",
                    "pipeline_done", "client_approve", "document_removed"):
         repo.put_audit(AuditEvent(
             engagement_id=eid, event_id=new_id(), ts=utcnow(), actor_id="p",

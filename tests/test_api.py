@@ -452,3 +452,65 @@ def test_access_email_failure_still_grants_access(ctx, monkeypatch):
 
     assert client.post(f"/engagements/{e2}/members", json={"user_id": "client9"}).status_code == 201
     assert repo.get_membership(e2, "client9") is not None
+
+
+def _drive_to_audit(client, repo, state):
+    """Take a fresh engagement as far as the billing audit and stop there."""
+    r = client.post("/engagements", json={"name": "Apex", "client_name": "Apex LLC"})
+    eid, sid = r.json()["engagement"]["engagement_id"], r.json()["submission_id"]
+    did = client.post(f"/engagements/{eid}/documents:presign",
+                      json={"doc_type": "MSA", "filename": "m.pdf", "submission_id": sid}).json()["document_id"]
+    repo.update_submission_status(eid, sid, SubmissionStatus.DRAFT.value, SubmissionStatus.EXTRACTING.value)
+    repo.update_submission_status(eid, sid, SubmissionStatus.EXTRACTING.value, SubmissionStatus.IN_UNDERWRITING.value)
+    seed_pricing(repo, eid, did, 1, program="Fuel Management Program",
+                 item="Fuel Fee", amount=4.0)
+    client.patch(f"/engagements/{eid}/billing", json={"fleet_size": 100})
+    client.post(f"/engagements/{eid}/submissions/{sid}:submit-to-client")
+    repo.put_membership(Membership(engagement_id=eid, user_id="client1", email="c@apex.com",
+                                   role=Role.CLIENT, created_at=utcnow()))
+    _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
+    client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
+                json={"signature": {"full_name": "Jordan Lee", "place": "Austin"}})
+    _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
+    return eid, sid, did
+
+
+def test_billing_audit_can_trace_every_charge_to_a_clause(ctx):
+    """The audit is only possible if each billed line says where it was read from."""
+    client, repo, state = ctx
+    eid, sid, did = _drive_to_audit(client, repo, state)
+
+    body = client.get(f"/engagements/{eid}/billing", params={"submission_id": sid}).json()
+    assert body["status"] == "PENDING_BILLING_AUDIT"
+    item = next(i for i in body["config"]["pricing_items"] if i["item"] == "Fuel Fee")
+    # Without these three the right-hand pane has a number and no way to check it.
+    assert item["document_id"] == did
+    assert item["version"] == 1
+    assert item["citations"] and item["citations"][0]["page"] == 1
+    assert item["record_id"]
+
+    # And the schedule is generated *before* the audit, because what is being audited is what
+    # the customer will be invoiced — dates included.
+    assert body["schedule"] and body["monthly_recurring"] == 400.0
+    # The screen's own arithmetic must land on the stored figure, or it warns instead of
+    # approving: per-vehicle-per-month amount × fleet.
+    assert item["amount"] * body["fleet_size"] == body["monthly_recurring"]
+
+
+def test_billing_audit_reads_the_cycle_under_audit_not_the_one_in_force(ctx):
+    """During an amendment the billing *in force* is the previous cycle, which is not the
+    thing being audited."""
+    client, repo, state = ctx
+    eid = _drive_to_active(client, repo, state, None)
+    live_sid = client.get(f"/engagements/{eid}").json()["submission"]["submission_id"]
+
+    amendment = client.post(f"/engagements/{eid}/amendments").json()["submission"]
+    new_sid = amendment["submission_id"]
+    assert new_sid != live_sid
+
+    # Unasked, billing answers with the cycle that is actually billing today.
+    assert client.get(f"/engagements/{eid}/billing").json()["status"] == "ACTIVE"
+    # Named, it answers with the cycle the audit is looking at.
+    assert client.get(
+        f"/engagements/{eid}/billing", params={"submission_id": new_sid}
+    ).json()["status"] == "DRAFT"

@@ -81,7 +81,7 @@ ENGAGEMENTS = [
     (6, "Store delivery fleet", "LEASE_AND_SERVICE", "ACTIVE", 42, 6, 36, -12),
     (7, "Field engineering pickups", "LEASE_ONLY", "IN_UNDERWRITING", 17, None, 36, None),
     (8, "Facilities vans", "LEASE_AND_SERVICE", "ACTIVE", 15, 3, 24, 205),
-    (9, "Route delivery — Southeast", "LEASE_ONLY", "PENDING_FINANCE_APPROVAL", 24, None, 36, None),
+    (9, "Route delivery — Southeast", "LEASE_ONLY", "PENDING_BILLING_AUDIT", 24, None, 36, None),
     (10, "Technician fleet", "LEASE_AND_SERVICE", "ACTIVE", 28, 10, 36, 88),
     (11, "Plant logistics + forklifts", "LEASE_AND_SERVICE", "DRAFT", 0, None, 36, None),
 ]

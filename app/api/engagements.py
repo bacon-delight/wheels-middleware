@@ -295,9 +295,17 @@ def get_audit(
     return {"events": events}
 
 
+# Once billing has been generated there is a schedule to show — including while it is being
+# audited, which is the whole point of the audit: what the customer will actually be invoiced.
+_SCHEDULED_STATUSES = (
+    "BILLING_SETUP", "PENDING_BILLING_AUDIT", "CHANGES_REQUESTED_AUDIT", "ACTIVE",
+)
+
+
 @router.get("/engagements/{engagement_id}/billing")
 def get_billing(
     engagement_id: str,
+    submission_id: str | None = None,
     member: Membership = Depends(membership_dep),
     repo: Repository = Depends(get_repo),
     s3: S3Store = Depends(get_s3),
@@ -305,7 +313,14 @@ def get_billing(
     engagement = repo.get_engagement(engagement_id)
     fleet_size = engagement.fleet_size if engagement else 100
     monthly_recurring = engagement.monthly_recurring if engagement else None
-    sub = repo.billing_submission(engagement_id)
+    # By default this is the cycle whose terms bill today. The audit asks for a named cycle
+    # instead: during an amendment the billing in force is the *previous* one, and auditing
+    # that would be auditing something nobody changed.
+    sub = (
+        repo.get_submission(engagement_id, submission_id)
+        if submission_id
+        else repo.billing_submission(engagement_id)
+    )
     if sub is None:
         return {"config": None, "status": None, "fleet_size": fleet_size}
     config = None
@@ -323,7 +338,7 @@ def get_billing(
     schedule: list = []
     summary: dict = {}
     frequency = engagement.billing_frequency if engagement else "monthly"
-    if config and engagement and sub.status.value in ("BILLING_SETUP", "ACTIVE"):
+    if config and engagement and sub.status.value in _SCHEDULED_STATUSES:
         import datetime
 
         from ..billing.config_builder import ensure_schedule

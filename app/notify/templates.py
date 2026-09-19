@@ -134,11 +134,13 @@ TEMPLATES: dict[str, dict] = {
         "heading": "Your approval is recorded",
         "intro": "Hello {recipient_name},<br><br>Thanks for approving the billing terms for "
         "<strong>{engagement_name}</strong>. Your electronic signature has been recorded.",
-        "detail": "Our finance team will complete a final validation and set up billing. You'll "
-        "get an email when your payment schedule is ready — nothing more is needed from you now.",
+        "detail": "Your billing is being set up from the terms you signed, and we check it "
+        "before anything is charged. You'll get an email when your payment schedule is ready — "
+        "nothing more is needed from you now.",
         "cta": ("View engagement", "engagement_url"),
-        "text": "Thanks for approving the terms for {engagement_name}. Finance will validate and "
-        "set up billing; we'll email you when your payment schedule is ready. {engagement_url}",
+        "text": "Thanks for approving the terms for {engagement_name}. Billing is being set up "
+        "from them and checked before anything is charged; we'll email you when your payment "
+        "schedule is ready. {engagement_url}",
     },
     "BILLING_AUDIT_NEEDED": {
         "recipients": ["finance"],

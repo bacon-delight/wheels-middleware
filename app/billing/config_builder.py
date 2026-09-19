@@ -93,9 +93,18 @@ def build_billing_config(
             )
             if fee is not None:
                 entry["fee_items"].append(fee)
+                # Each billed line keeps a way back to the clause it was read from. Without it
+                # the config is a list of numbers nobody can check; with it the audit can put
+                # the fee beside the sentence that set it.
                 config["pricing_items"].append(
                     {**fee, "program": entry["service"], "item": record.get("item"),
-                     "approved": term.approved, "billing_class": fee["billing_class"]}
+                     "approved": term.approved, "billing_class": fee["billing_class"],
+                     "record_id": term.record_id, "document_id": document_id,
+                     "version": doc.current_version, "doc_type": doc.doc_type,
+                     "frequency": record.get("frequency"),
+                     "calculation": record.get("calculation"),
+                     "confidence": term.confidence,
+                     "citations": term.citations or []}
                 )
             entry["approved"] = entry["approved"] and term.approved
 

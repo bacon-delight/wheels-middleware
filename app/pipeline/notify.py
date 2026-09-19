@@ -51,7 +51,8 @@ def _context(settings, engagement, detail) -> dict:
         "reasons": detail.get("reasons") or "(see the document)",
         "engagement_url": base,
         "review_url": f"{base}/review",
-        "audit_url": f"{base}/billing",
+        # The audit has its own screen now — the billing page only summarises it.
+        "audit_url": f"{base}/billing-audit",
         "billing_url": f"{base}/billing",
     }
 
