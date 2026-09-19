@@ -609,6 +609,24 @@ class Repository:
         )
         return v
 
+    def discard_document_version(self, engagement_id: str, document_id: str, version: int) -> None:
+        """Undo a version whose upload never landed: drop the row, roll the document back.
+
+        Only ever called for a version nothing has read. A version that was parsed is part of
+        the record, and the way to retract it is to supersede it with another.
+        """
+        self.table.delete_item(
+            Key={
+                "PK": k.eng_pk(engagement_id),
+                "SK": k.version_sk(document_id, version),
+            }
+        )
+        self.table.update_item(
+            Key={"PK": k.eng_pk(engagement_id), "SK": k.document_sk(document_id)},
+            UpdateExpression="SET current_version = :v",
+            ExpressionAttributeValues={":v": version - 1},
+        )
+
     def get_document_version(
         self, engagement_id: str, document_id: str, version: int
     ) -> DocumentVersion | None:

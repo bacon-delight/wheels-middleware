@@ -150,6 +150,41 @@ _DELETABLE_STATUSES = {
 }
 
 
+@router.delete(
+    "/engagements/{engagement_id}/documents/{document_id}/versions/{version}", status_code=200
+)
+def discard_version(
+    engagement_id: str,
+    document_id: str,
+    version: int,
+    member: Membership = Depends(require_provider),
+    principal: Principal = Depends(get_principal),
+    repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
+):
+    """Undo an upload whose file never arrived.
+
+    The row is written when the upload is presigned, because the key it points at is built from
+    the document and version. If the browser's PUT then fails — a blocked origin, a dropped
+    connection — the engagement is left holding an agreement with nothing behind it, which
+    reads as a document stuck for ever on "reading…". This is how the caller takes it back.
+    """
+    doc = repo.get_document(engagement_id, document_id)
+    if doc is None:
+        raise HTTPException(404, "document not found")
+    ver = repo.get_document_version(engagement_id, document_id, version)
+    if ver is None:
+        raise HTTPException(404, "version not found")
+    if ver.status != "uploaded":
+        raise HTTPException(409, "this version has already been read; supersede it instead")
+    if version == 1:
+        # Nothing of this document ever landed, so nothing of it should remain.
+        return delete_document(engagement_id, document_id, member, principal, repo, s3)
+    repo.discard_document_version(engagement_id, document_id, version)
+    s3.delete_prefix(f"{engagement_id}/{document_id}/v{version:04d}")
+    return {"document_id": document_id, "current_version": version - 1}
+
+
 @router.delete("/engagements/{engagement_id}/documents/{document_id}", status_code=200)
 def delete_document(
     engagement_id: str,

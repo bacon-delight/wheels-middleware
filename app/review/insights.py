@@ -12,8 +12,9 @@ import hashlib
 import logging
 from typing import Any
 
+from ..catalog.resolve import normalise
 from ..llm.base import Tool
-from ..store.models import Submission
+from ..store.models import DocumentStanding, Submission
 from ..store.repository import Repository
 
 log = logging.getLogger(__name__)
@@ -52,33 +53,52 @@ def fee_line(fi: dict[str, Any]) -> str:
     return " · ".join(parts)
 
 
-def _priced_terms(terms) -> dict[str, str]:
-    """What each program costs, as one readable line per program.
+def _priced_terms(terms) -> dict[str, tuple[str, str]]:
+    """What each program costs: comparison key -> (name to show, the priced line).
 
     Pricing only. A re-upload diff exists to answer whether the money changed, and threading a
     definition that gained a comma through it would bury the answer.
+
+    Both sides of the comparison are readings, not the document itself, so wording that differs
+    between two reads of the same page must not read as a change. Identity therefore comes from
+    the catalog where a term resolved and from the normalised label otherwise, the unit basis
+    comes from the normalised field rather than the contract's phrasing, and a row carrying no
+    money at all is left out — it cannot be evidence that the money moved.
     """
-    out: dict[str, list[str]] = {}
+    out: dict[str, dict[str, Any]] = {}
     for t in terms:
         if t.category != "pricing" or t.superseded:
             continue
         record = t.record or {}
         program = record.get("program") or t.subtitle or t.title
+        # Money, not merely a row. A unit basis on its own ("per occurrence") is how the term
+        # would be charged if it were charged — it cannot show that a price moved, and two
+        # reads of one page disagree about such rows often enough to bury the real finding.
+        priced = (
+            record.get("amount") is not None
+            or record.get("rate_pct") is not None
+            or record.get("minimum") is not None
+            or bool(record.get("tier_bands"))
+        )
+        if not priced:
+            continue
         line = fee_line(
             {
                 "amount": record.get("amount"),
                 "rate_pct": record.get("rate_pct"),
                 "fee_type": record.get("fee_type"),
-                "unit_basis": record.get("frequency"),
+                "unit_basis": t.unit_basis or record.get("frequency"),
                 "minimum": record.get("minimum"),
                 "tier_bands": record.get("tier_bands"),
             }
         )
-        label = record.get("item") or "program"
-        out.setdefault(program, []).append(f"{label}: {line}" if line else label)
+        key = t.program_id or normalise(program) or str(program).lower()
+        label = t.catalog_item_id or normalise(record.get("item")) or "program"
+        entry = out.setdefault(key, {"display": program, "lines": []})
+        entry["lines"].append(f"{label}: {line}")
     return {
-        program: " ; ".join(sorted(lines)) or "(no fee terms)"
-        for program, lines in out.items()
+        key: (v["display"], " ; ".join(sorted(v["lines"])))
+        for key, v in out.items()
     }
 
 
@@ -112,6 +132,9 @@ _CHANGE_TOOL = Tool(
     },
 )
 
+# Bumped whenever the comparison changes shape, so stored assessments are not reused across it.
+_COMPARISON_VERSION = 3
+
 _CHANGE_SYSTEM = (
     "You verify that a provider's re-uploaded fleet-billing agreement reflects the changes a "
     "client requested. You are given the client's requested changes and a diff of what actually "
@@ -123,6 +146,32 @@ _CHANGE_SYSTEM = (
 )
 
 
+def _predecessor(repo: Repository, eid: str, doc) -> tuple[str, int] | None:
+    """The reading this agreement should be compared against, or None on a first upload.
+
+    A revision arrives one of two ways, and the answer has to survive both. Replacing an
+    agreement bumps it to a new version, so the previous reading is version-1 of the same
+    document. Uploading the revision as its own file instead supersedes the old document, and
+    the previous reading is the newest superseded agreement of the same type. Only versions
+    within one document were handled before, so a re-upload that arrived as a new file looked
+    like a first upload and there was nothing to verify.
+    """
+    if doc.current_version >= 2:
+        return doc.document_id, doc.current_version - 1
+    older = [
+        d
+        for d in repo.list_documents(eid)
+        if d.document_id != doc.document_id
+        and d.doc_type == doc.doc_type
+        and d.standing == DocumentStanding.SUPERSEDED.value
+        and repo.term_counts(eid, d.document_id, d.current_version)
+    ]
+    if not older:
+        return None
+    previous = max(older, key=lambda d: d.created_at)
+    return previous.document_id, previous.current_version
+
+
 def _changes_and_versions(repo: Repository, sub: Submission) -> tuple[list[dict], str]:
     eid = sub.engagement_id
     changes: list[dict[str, Any]] = []
@@ -132,17 +181,25 @@ def _changes_and_versions(repo: Repository, sub: Submission) -> tuple[list[dict]
         if not doc:
             continue
         cur = doc.current_version
-        sig_parts.append(f"{did}:{cur}")
-        if cur < 2:
+        previous = _predecessor(repo, eid, doc)
+        # The signature names both sides, so the cached assessment is dropped when either the
+        # revision or the thing it is compared against changes.
+        sig_parts.append(
+            f"{did}:{cur}" + (f"<{previous[0]}:{previous[1]}" if previous else "")
+        )
+        if previous is None:
             continue
         new_terms = _priced_terms(repo.list_terms(eid, did, cur, "pricing"))
-        old_terms = _priced_terms(repo.list_terms(eid, did, cur - 1, "pricing"))
-        for svc in sorted(set(new_terms) | set(old_terms)):
-            before = old_terms.get(svc, "(not present)")
-            after = new_terms.get(svc, "(not present)")
+        old_terms = _priced_terms(repo.list_terms(eid, previous[0], previous[1], "pricing"))
+        for key in sorted(set(new_terms) | set(old_terms)):
+            was, before = old_terms.get(key, ("", "(not present)"))
+            now, after = new_terms.get(key, ("", "(not present)"))
             if before != after:
                 changes.append(
-                    {"service": svc, "doc": doc.doc_type, "before": before, "after": after}
+                    {
+                        "service": now or was, "doc": doc.doc_type,
+                        "before": before, "after": after,
+                    }
                 )
     return changes, "|".join(sig_parts)
 
@@ -194,9 +251,10 @@ def build_change_review(repo: Repository, sub: Submission) -> dict[str, Any]:
     """Assess the current (re-uploaded) terms against the client's request; cached on the sub."""
     changes, version_sig = _changes_and_versions(repo, sub)
     requested = _latest_client_request(repo, sub.engagement_id)
-    applicable = any(":" in p and int(p.split(":")[1]) >= 2 for p in version_sig.split("|") if p)
+    # Verifiable when some agreement in force has an earlier reading to be held against.
+    applicable = any("<" in p for p in version_sig.split("|") if p)
     req_hash = hashlib.md5(requested.encode()).hexdigest()[:8]  # noqa: S324 - cache key, not security
-    cache_key = f"{version_sig}::{req_hash}"
+    cache_key = f"v{_COMPARISON_VERSION}::{version_sig}::{req_hash}"
     if not applicable:
         return {"applicable": False}
     cached = sub.change_review
