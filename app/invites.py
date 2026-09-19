@@ -145,6 +145,10 @@ class AccountIsStaff(Exception):
     """The address belongs to a Wheels account, which is not a customer contact."""
 
 
+class AccountUnverified(Exception):
+    """An account exists for the address, but the pool would not say whose it is."""
+
+
 def invite_or_add(
     repo: Repository,
     engagement: Engagement,
@@ -176,8 +180,14 @@ def invite_or_add(
     account = find_account(email=email, settings=settings)
     if account is None:
         raise taken
-    if account["is_provider"]:
+    # Two authorities, because neither alone is enough. The provider directory is ours and
+    # always answers; the pool's groups cover an account the directory has not seen. When the
+    # pool could not be asked, the honest answer is the collision we already caught, not a
+    # guess that writes the wrong membership.
+    if account["is_provider"] or repo.get_provider_user(account["user_id"]) is not None:
         raise AccountIsStaff(account["email"])
+    if not account["groups_known"]:
+        raise AccountUnverified(account["email"]) from taken
     existing = repo.get_membership(engagement.engagement_id, account["user_id"])
     if existing is not None:
         return existing, "already"
@@ -196,13 +206,16 @@ def _account(cog, user: dict, settings: Settings) -> dict:
     raw = user.get("UserAttributes") or user.get("Attributes", [])
     attrs = {a["Name"]: a["Value"] for a in raw}
     username = user["Username"]
-    groups: list[str] = []
+    # `None` means the question was never answered, which is not the same as "no groups". An
+    # unreadable group list used to read as "customer", so a lost permission or a throttled
+    # call would have quietly handed a Wheels account a client membership.
+    groups: list[str] | None = None
     try:
         r = cog.admin_list_groups_for_user(
             UserPoolId=settings.cognito_user_pool_id, Username=username
         )
         groups = [g["GroupName"] for g in r.get("Groups", [])]
-    except Exception as e:  # noqa: BLE001 - group membership is advisory here
+    except Exception as e:  # noqa: BLE001 - reported as unknown, never as absent
         log.warning("could not read groups for %s: %s", username, e)
     return {
         "user_id": attrs.get("sub", ""),
@@ -210,7 +223,8 @@ def _account(cog, user: dict, settings: Settings) -> dict:
         "name": attrs.get("name"),
         "phone": attrs.get("phone_number"),
         "username": username,
-        "is_provider": "provider" in groups or "finance" in groups,
+        "groups_known": groups is not None,
+        "is_provider": bool(groups) and ("provider" in groups or "finance" in groups),
     }
 
 

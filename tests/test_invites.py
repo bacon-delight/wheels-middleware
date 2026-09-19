@@ -12,7 +12,7 @@ import pytest
 
 from app.config import get_settings
 from app.lifecycle.submission_state import Role
-from app.store.models import Membership
+from app.store.models import Membership, ProviderUser
 from app.store.repository import utcnow
 
 from .test_api import REGION, _as, ctx  # noqa: F401 - `ctx` is the shared moto fixture
@@ -134,3 +134,106 @@ def test_search_reaches_other_customers_and_says_whose_they_are(ctx, pool, monke
     ).json()["candidates"]
     assert found[0]["customers"] == ["AbbVie Inc"] and found[0]["same_customer"] is False
     assert found[0]["engagements"] == ["AbbVie services"]
+
+
+def _deny_groups(monkeypatch):
+    """Make AdminListGroupsForUser fail, as it did in dev when the role lacked the action."""
+    import botocore.client
+
+    real = botocore.client.BaseClient._make_api_call
+
+    def call(self, op, kwargs):
+        if op == "AdminListGroupsForUser":
+            from botocore.exceptions import ClientError
+
+            raise ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "not authorized"}}, op
+            )
+        return real(self, op, kwargs)
+
+    monkeypatch.setattr(botocore.client.BaseClient, "_make_api_call", call)
+
+
+def test_staff_are_refused_even_when_their_groups_cannot_be_read(ctx, pool, monkeypatch):  # noqa: F811
+    """The guard must not rest on a call that is allowed to fail — it did, and the role that
+    runs the API could not make that call at all."""
+    client, repo, state = ctx
+    cog, pool_id = pool
+    monkeypatch.setattr("app.notify.emailer.Emailer.send", lambda self, **kw: None)
+
+    sub = _account(cog, pool_id, "ana@wheels.com", "Ana Lyst", group="provider")
+    # Known to us as staff, whatever the pool will or will not say.
+    repo.put_provider_user(ProviderUser(user_id=sub, email="ana@wheels.com", name="Ana Lyst",
+                                        created_at=utcnow()))
+    eid, _ = _engagement(client)
+    _deny_groups(monkeypatch)
+
+    r = client.post(f"/engagements/{eid}/invitations", json={"email": "ana@wheels.com"})
+    assert r.status_code == 400 and "Wheels team member" in r.json()["detail"]
+    assert repo.get_membership(eid, sub) is None
+
+    # And through the picker's own path, by id.
+    assert client.post(f"/engagements/{eid}/members", json={"user_id": sub}).status_code == 400
+
+
+def test_an_unreadable_group_list_never_reads_as_customer(ctx, pool, monkeypatch):  # noqa: F811
+    """An account we cannot classify is left alone: the collision is reported as a collision."""
+    client, repo, state = ctx
+    cog, pool_id = pool
+    monkeypatch.setattr("app.notify.emailer.Emailer.send", lambda self, **kw: None)
+
+    sub = _account(cog, pool_id, "someone@apex.com", "Some One")
+    eid, _ = _engagement(client)
+    _deny_groups(monkeypatch)
+
+    r = client.post(f"/engagements/{eid}/invitations", json={"email": "someone@apex.com"})
+    assert r.status_code == 409 and "could not check whose it is" in r.json()["detail"]
+    assert repo.get_membership(eid, sub) is None
+    # Nor is such an account offered in the picker, since adding it would be refused.
+    assert client.get(
+        f"/engagements/{eid}/invitations/candidates", params={"q": "someone@apex.com"}
+    ).json()["candidates"] == []
+
+
+def test_a_new_address_is_invited_and_reported_as_invited(ctx, pool, monkeypatch):  # noqa: F811
+    """The other branch: no account yet, so one is created and the password email goes out."""
+    client, repo, state = ctx
+    cog, pool_id = pool
+    sent: list[dict] = []
+    monkeypatch.setattr("app.notify.emailer.Emailer.send", lambda self, **kw: sent.append(kw))
+    eid, _ = _engagement(client)
+
+    r = client.post(
+        f"/engagements/{eid}/invitations", json={"email": "new@apex.com", "name": "New Person"}
+    )
+    assert r.status_code == 201 and r.json()["outcome"] == "invited"
+    assert sent[-1]["template"] == "USER_INVITATION" and sent[-1]["temp_password"]
+    groups = cog.admin_list_groups_for_user(UserPoolId=pool_id, Username="new@apex.com")
+    assert [g["GroupName"] for g in groups["Groups"]] == ["client"]
+
+
+def test_an_address_is_the_same_address_in_any_case(ctx, pool, monkeypatch):  # noqa: F811
+    """Cognito usernames are case-sensitive; one person's address is not."""
+    client, repo, state = ctx
+    cog, pool_id = pool
+    monkeypatch.setattr("app.notify.emailer.Emailer.send", lambda self, **kw: None)
+    eid, _ = _engagement(client)
+
+    first = client.post(f"/engagements/{eid}/invitations", json={"email": "Jordan@Apex.com"})
+    assert first.status_code == 201 and first.json()["outcome"] == "invited"
+    # The same person typed differently is the same person, not a second account.
+    again = client.post(f"/engagements/{eid}/invitations", json={"email": "jordan@apex.com"})
+    assert again.status_code == 409
+    assert len(cog.list_users(UserPoolId=pool_id)["Users"]) == 1
+
+
+def test_a_name_that_is_not_in_the_address_still_matches(ctx, pool, monkeypatch):  # noqa: F811
+    client, repo, state = ctx
+    here, _ = _engagement(client, "Walmart lease", "Walmart Inc")
+    there, _ = _engagement(client, "AbbVie services", "AbbVie Inc")
+    repo.put_membership(Membership(engagement_id=there, user_id="u-1", email="dx131@gmail.com",
+                                   role=Role.CLIENT, name="Bacon", created_at=utcnow()))
+    found = client.get(
+        f"/engagements/{here}/invitations/candidates", params={"q": "bac"}
+    ).json()["candidates"]
+    assert [c["email"] for c in found] == ["dx131@gmail.com"]

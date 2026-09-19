@@ -345,15 +345,27 @@ def invite_user(
     engagement = repo.get_engagement(engagement_id)
     if engagement is None:
         raise HTTPException(404, "engagement not found")
-    from ..invites import AccountIsStaff, invite_or_add
+    # Cognito usernames are case-sensitive, so "Jordan@apex.com" and "jordan@apex.com" would
+    # be two accounts for one person — and the collision fallback, which looks up lowercased,
+    # would then resolve the other one. Normalise before anything else sees it.
+    email = body.email.strip().lower()
+    if not email:
+        raise HTTPException(400, "email is required")
+    from ..invites import AccountIsStaff, AccountUnverified, invite_or_add
 
     try:
         # Engagement-level invites are always customer-side; provider staff are org-level. An
         # address that already has an account is given access rather than refused.
         invited, what = invite_or_add(
-            repo, engagement, body.email,
+            repo, engagement, email,
             inviter_name=principal.name or principal.email, name=body.name,
         )
+    except AccountUnverified as e:
+        raise HTTPException(
+            409,
+            f"{e} already has an account, but we could not check whose it is just now — "
+            "try again in a moment",
+        ) from e
     except AccountIsStaff as e:
         raise HTTPException(
             400,
@@ -365,7 +377,7 @@ def invite_user(
         raise HTTPException(409, "this person already has access to the engagement")
     _audit(
         repo, engagement_id, principal,
-        "user_invited" if what == "invited" else "user_added", target=body.email,
+        "user_invited" if what == "invited" else "user_added", target=email,
     )
     return {"membership": invited, "outcome": what}
 
@@ -461,10 +473,14 @@ def list_invite_candidates(
         account = find_account(email=needle)
         if (
             account
+            # An account whose groups could not be read is not offered: the add would refuse
+            # it a moment later, and a row nobody can act on is worse than no row.
+            and account["groups_known"]
             and not account["is_provider"]
             and account["user_id"]
             and account["user_id"] not in already
             and account["user_id"] not in staff
+            and repo.get_provider_user(account["user_id"]) is None
         ):
             rows.append({
                 "user_id": account["user_id"], "email": account["email"],
@@ -506,8 +522,12 @@ def add_member(
         # Known to the user pool but on no engagement yet: the account exists, so it is added
         # rather than invited, but its details have to come from the pool.
         account = find_account(sub=body.user_id)
-        if account is None or account["is_provider"]:
+        if account is None or not account["groups_known"]:
             raise HTTPException(404, "no customer account with that id")
+        if account["is_provider"] or repo.get_provider_user(body.user_id) is not None:
+            raise HTTPException(
+                400, "that account is a Wheels team member, not a customer contact"
+            )
         ensure_client_group(account["username"])
         person = {
             "email": account["email"], "name": account["name"], "phone": account["phone"],
