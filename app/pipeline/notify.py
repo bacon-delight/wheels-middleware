@@ -22,10 +22,12 @@ _ROUTES: dict[str, list[tuple[str, list[Role]]]] = {
     "resubmit_to_client": [("TERMS_RESUBMITTED", [Role.CLIENT])],
     "reupload": [("CHANGES_APPLIED", [Role.CLIENT])],
     "client_approve": [("CLIENT_APPROVAL_ACK", [Role.CLIENT])],
-    "capture_fields": [("FINANCE_APPROVAL_NEEDED", _PROVIDER)],
-    "finance_request_changes": [("FINANCE_CHANGES_REQUESTED", _PROVIDER)],
+    # Billing now exists by the time anyone is asked to look, so the alert that matters is
+    # "there is a breakdown to audit", not "terms were captured".
+    "billing_ready": [("BILLING_AUDIT_NEEDED", _PROVIDER)],
+    "audit_request_changes": [("AUDIT_CHANGES_REQUESTED", _PROVIDER)],
     "sanity_fail": [("VALIDATION_FAILED", _PROVIDER)],
-    "billing_done": [
+    "approve_billing": [
         ("BILLING_ACTIVE_CLIENT", [Role.CLIENT]),
         ("BILLING_CONFIGURED_PROVIDER", _PROVIDER),
     ],
@@ -49,7 +51,7 @@ def _context(settings, engagement, detail) -> dict:
         "reasons": detail.get("reasons") or "(see the document)",
         "engagement_url": base,
         "review_url": f"{base}/review",
-        "finance_url": f"{base}/finance",
+        "audit_url": f"{base}/billing",
         "billing_url": f"{base}/billing",
     }
 

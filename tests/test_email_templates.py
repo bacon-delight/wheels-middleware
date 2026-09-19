@@ -19,7 +19,7 @@ SAMPLE_CTX = {
     "login_url": "https://wheels.logiforma.dev/login",
     "review_url": "https://wheels.logiforma.dev/e/apex/review",
     "engagement_url": "https://wheels.logiforma.dev/e/apex",
-    "finance_url": "https://wheels.logiforma.dev/e/apex/finance",
+    "audit_url": "https://wheels.logiforma.dev/e/apex/billing",
     "billing_url": "https://wheels.logiforma.dev/e/apex/billing",
     "round": 2,
     "comments": "Please reduce the maintenance management fee to $10.50.",

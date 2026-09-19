@@ -48,7 +48,7 @@ class FieldPatchIn(BaseModel):
 # amendment rather than to the cycle that closed.
 _UPLOADABLE_STATUSES = {
     "DRAFT", "IN_UNDERWRITING", "VALIDATION_FAILED",
-    "CHANGES_REQUESTED_CLIENT", "CHANGES_REQUESTED_FINANCE",
+    "CHANGES_REQUESTED_CLIENT", "CHANGES_REQUESTED_AUDIT",
 }
 
 

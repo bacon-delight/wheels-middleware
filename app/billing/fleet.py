@@ -12,7 +12,9 @@ would retroactively change amounts already invoiced.
 from __future__ import annotations
 
 # Mirrors the 409 guard in api/engagements.py.
-LOCKED_STATUSES = frozenset({"BILLING_SETUP", "ACTIVE"})
+# Once billing has been generated the schedule recomputes from these dues, so the
+# number stops being editable — including while it is being audited.
+LOCKED_STATUSES = frozenset({"BILLING_SETUP", "PENDING_BILLING_AUDIT", "ACTIVE"})
 
 
 def effective_fleet_size(assigned_vehicle_count: int, override: int | None) -> int:

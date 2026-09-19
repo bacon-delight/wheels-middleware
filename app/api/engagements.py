@@ -11,7 +11,13 @@ from ..auth.deps import get_principal, get_repo, get_s3, membership_dep, require
 from ..auth.principal import Principal
 from ..billing.fleet import effective_fleet_size, fleet_source, is_locked
 from ..lifecycle.amendment import can_open_amendment, cycle_label
-from ..lifecycle.submission_state import Role
+from ..lifecycle.submission_state import (
+    STAGE_BLURBS,
+    STAGE_LABELS,
+    Role,
+    Stage,
+    stage_of,
+)
 from ..lifecycle.visibility import visible_actions
 from ..store.models import (
     AuditEvent,
@@ -125,7 +131,27 @@ def list_engagements(
         ids = repo.list_user_engagement_ids(principal.user_id)
         engagements = [e for e in (repo.get_engagement(i) for i in ids) if e is not None]
     engagements.sort(key=lambda e: e.created_at, reverse=True)
-    return {"engagements": engagements}
+    rows = []
+    for e in engagements:
+        row = e.model_dump(mode="json")
+        stage = stage_of(e.status)
+        row["stage"] = stage.value
+        row["stage_label"] = STAGE_LABELS[stage]
+        rows.append(row)
+    return {
+        "engagements": rows,
+        # The five steps, in order, with how many sit in each — so a board can render itself
+        # without deriving the vocabulary a second time and drifting from it.
+        "stages": [
+            {
+                "key": st.value,
+                "label": STAGE_LABELS[st],
+                "blurb": STAGE_BLURBS[st],
+                "count": sum(1 for r in rows if r["stage"] == st.value),
+            }
+            for st in Stage
+        ],
+    }
 
 
 def _coverage_summary(repo: Repository, engagement_id: str) -> dict[str, int]:
@@ -219,6 +245,8 @@ def get_engagement(
             }
             for c in submissions
         ],
+        "stage": stage_of(sub.status if sub else None).value,
+        "stage_label": STAGE_LABELS[stage_of(sub.status if sub else None)],
         "live_submission_id": live.submission_id if live else None,
         "is_amendment": bool(sub and sub.cycle > 1),
         "cycle_label": cycle_label(sub.cycle) if sub else None,

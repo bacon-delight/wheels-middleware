@@ -169,12 +169,13 @@ def test_full_lifecycle_and_tenancy(ctx):
     assert client.get(f"/engagements/{eid}/documents/{did}/versions/1/fields").json()["needs_review_count"] == 0
     r = client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
                     json={"signature": {"full_name": "Jordan Lee", "place": "Austin, TX"}})
-    assert r.json()["submission"]["status"] == "PENDING_FINANCE_APPROVAL"
+    # Signing builds the billing on the spot, so what comes back is something to audit rather
+    # than another queue to wait in.
+    assert r.json()["submission"]["status"] == "PENDING_BILLING_AUDIT"
 
-    # Finance (provider role) approves and sets up billing -> ACTIVE.
+    # The audit reads the generated billing and takes the engagement live.
     _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
-    assert client.post(f"/engagements/{eid}/submissions/{sid}:finance-approve").json()["submission"]["status"] == "FINANCE_APPROVED"
-    r = client.post(f"/engagements/{eid}/submissions/{sid}:setup-billing")
+    r = client.post(f"/engagements/{eid}/submissions/{sid}:approve-billing")
     assert r.json()["submission"]["status"] == "ACTIVE"
 
     # The billing config carries the priced terms, grouped by the program they belong to.
@@ -212,9 +213,9 @@ def _drive_to_active(client, repo, state, sid_holder):
     _as(state, Principal(user_id="client1", email="c@apex.com", groups=["client"]))
     client.post(f"/engagements/{eid}/submissions/{sid}:client-approve",
                 json={"signature": {"full_name": "Jordan Lee", "place": "Austin"}})
+    # Signing generates the billing itself; the only thing left is auditing what it produced.
     _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
-    client.post(f"/engagements/{eid}/submissions/{sid}:finance-approve")
-    client.post(f"/engagements/{eid}/submissions/{sid}:setup-billing")
+    client.post(f"/engagements/{eid}/submissions/{sid}:approve-billing")
     return eid
 
 
@@ -228,7 +229,8 @@ def test_finance_dashboard_totals(ctx):
     assert d["totals"]["monthly_recurring"] == 400.0  # $4 * 100 vehicles
     assert d["totals"]["annualized"] == 4800.0
     assert d["totals"]["total_fleet"] == 100
-    assert next(s["count"] for s in d["funnel"] if s["key"] == "active") == 1
+    # The funnel is grouped by the five lifecycle steps the whole product names.
+    assert next(s["count"] for s in d["funnel"] if s["key"] == "ACTIVE") == 1
     row = next(r for r in d["engagements"] if r["engagement_id"] == eid)
     assert row["monthly_recurring"] == 400.0 and row["status"] == "ACTIVE"
 

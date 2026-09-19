@@ -23,26 +23,21 @@ from ..auth.principal import Principal
 from ..billing.estimate import compute_monthly_recurring
 from ..billing.schedule import enrich, summarize
 from ..lifecycle.amendment import cycle_in_force
+from ..lifecycle.submission_state import STAGE_LABELS, STAGE_OF, Stage
 from ..objects import billing_config_key
 from ..store.repository import Repository
 from ..store.s3 import S3Store
 
 router = APIRouter(tags=["finance"])
 
-# Pipeline stages, in order, mapping submission statuses into finance-meaningful buckets.
+# The funnel is the lifecycle, so it is grouped by the same five steps the rest of the product
+# names rather than by a private set of buckets that could drift from them.
 _STAGES: list[tuple[str, str, set[str]]] = [
-    ("processing", "Processing", {"DRAFT", "EXTRACTING", "REVALIDATING"}),
-    ("underwriting", "Underwriting", {"IN_UNDERWRITING", "VALIDATION_FAILED"}),
-    ("client", "With customer", {"PENDING_CLIENT_APPROVAL", "CHANGES_REQUESTED_CLIENT"}),
-    (
-        "finance",
-        "Awaiting finance",
-        {"CLIENT_APPROVED", "PENDING_FINANCE_APPROVAL", "CHANGES_REQUESTED_FINANCE"},
-    ),
-    ("billing", "Billing setup", {"FINANCE_APPROVED", "BILLING_SETUP"}),
-    ("active", "Active", {"ACTIVE"}),
+    (stage.value, STAGE_LABELS[stage],
+     {s.value for s, st in STAGE_OF.items() if st is stage})
+    for stage in Stage
 ]
-_AWAITING_FINANCE = {"CLIENT_APPROVED", "PENDING_FINANCE_APPROVAL"}
+_AWAITING_AUDIT = {"PENDING_BILLING_AUDIT"}
 
 # Contract-expiry windows, in days from today. Anything already past is "expired".
 _EXPIRY: list[tuple[str, str, int | None, int | None]] = [
@@ -272,7 +267,7 @@ def finance_dashboard(
         "totals": {
             "engagements": len(rows),
             "active": len(active),
-            "awaiting_finance": sum(1 for r in rows if r["status"] in _AWAITING_FINANCE),
+            "awaiting_audit": sum(1 for r in rows if r["status"] in _AWAITING_AUDIT),
             "in_pipeline": len(rows) - len(active),
             "customers": len(by_customer),
             "active_customers": sum(1 for c in by_customer.values()

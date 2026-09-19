@@ -323,6 +323,7 @@ def client_approve(
     engagement_id: str, submission_id: str, body: ApproveIn,
     member: Membership = Depends(membership_dep),
     principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+    s3: S3Store = Depends(get_s3),
 ):
     full_name = body.signature.full_name.strip()
     if not full_name:
@@ -334,10 +335,13 @@ def client_approve(
     repo.put_submission(sub)
     signed = f"Digitally signed by {full_name}" + (f" at {place}" if place else "")
     _apply(repo, principal, member, sub, Action.CLIENT_APPROVE, comment=signed)
-    # System step: freeze the approved terms and move to finance review.
+    # System steps, both of them: freeze the approved terms, then build the billing from them.
+    # The customer's signature is the trigger — there is no button in between, because there is
+    # no decision in between. What a person does next is audit what came out.
     sub = _load(repo, engagement_id, submission_id)
     system = _system(engagement_id)
-    updated = _apply(repo, principal, system, sub, Action.CAPTURE_FIELDS)
+    _apply(repo, principal, system, sub, Action.CAPTURE_FIELDS)
+    updated = _build_billing(repo, principal, engagement_id, submission_id, s3)
     return {"submission": updated}
 
 
@@ -385,54 +389,70 @@ def client_request_changes(
     return {"submission": updated}
 
 
-@router.post("/engagements/{engagement_id}/submissions/{submission_id}:finance-approve")
-def finance_approve(
-    engagement_id: str, submission_id: str,
-    member: Membership = Depends(membership_dep),
-    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
-):
-    sub = _load(repo, engagement_id, submission_id)
-    return {"submission": _apply(repo, principal, member, sub, Action.FINANCE_APPROVE)}
+def _build_billing(
+    repo: Repository, principal: Principal, engagement_id: str, submission_id: str, s3: S3Store
+) -> Submission:
+    """Generate the billing configuration and schedule, and hand it to the audit.
 
-
-@router.post("/engagements/{engagement_id}/submissions/{submission_id}:finance-request-changes")
-def finance_request_changes(
-    engagement_id: str, submission_id: str, body: CommentIn,
-    member: Membership = Depends(membership_dep),
-    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
-):
-    sub = _load(repo, engagement_id, submission_id)
-    return {
-        "submission": _apply(
-            repo, principal, member, sub, Action.FINANCE_REQUEST_CHANGES, body.comment
-        )
-    }
-
-
-@router.post("/engagements/{engagement_id}/submissions/{submission_id}:setup-billing")
-def setup_billing(
-    engagement_id: str, submission_id: str,
-    member: Membership = Depends(membership_dep),
-    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
-    s3: S3Store = Depends(get_s3),
-):
-    sub = _load(repo, engagement_id, submission_id)
-    _apply(repo, principal, member, sub, Action.SETUP_BILLING)
+    Runs as the system, off the back of the customer signing. A failure here leaves the
+    submission in BILLING_SETUP with nothing to audit, which is visible on the lifecycle board
+    rather than silent — the alternative, swallowing it, would show a signed engagement that
+    never bills and nobody looking for it.
+    """
     from ..billing.config_builder import build_billing_config, ensure_schedule
     from ..billing.estimate import compute_monthly_recurring
 
     config = build_billing_config(repo, engagement_id, submission_id, s3=s3)
-    # Compute recurring dues at the engagement's fleet size for the finance dashboard + client.
     engagement = repo.get_engagement(engagement_id)
     fleet = engagement.fleet_size if engagement else 100
     repo.set_engagement_billing(
         engagement_id, fleet, compute_monthly_recurring(config, fleet)
     )
-    # Build the dated payment schedule (initial + recurring) so the client can start paying.
     engagement = repo.get_engagement(engagement_id)
     if engagement:
         ensure_schedule(repo, engagement, submission_id, config)
     sub = _load(repo, engagement_id, submission_id)
-    system = _system(engagement_id)
-    updated = _apply(repo, principal, system, sub, Action.BILLING_DONE)
-    return {"submission": updated, "status": SubmissionStatus.ACTIVE.value}
+    return _apply(repo, principal, _system(engagement_id), sub, Action.BILLING_READY)
+
+
+@router.post("/engagements/{engagement_id}/submissions/{submission_id}:approve-billing")
+def approve_billing(
+    engagement_id: str, submission_id: str,
+    member: Membership = Depends(membership_dep),
+    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+):
+    """The billing audit passes: the engagement goes live."""
+    sub = _load(repo, engagement_id, submission_id)
+    updated = _apply(repo, principal, member, sub, Action.APPROVE_BILLING)
+    return {"submission": updated, "status": updated.status.value}
+
+
+@router.post("/engagements/{engagement_id}/submissions/{submission_id}:reopen")
+def reopen(
+    engagement_id: str, submission_id: str, body: CommentIn,
+    member: Membership = Depends(membership_dep),
+    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+):
+    """Take a cycle the audit sent back into review so the terms can be corrected.
+
+    Without this the audit's only outcome is approval: a cycle sent back had no way forward,
+    could not be extracted again, and sat there for ever. That was true of the finance step
+    this replaces — the transition existed and nothing ever called it.
+    """
+    sub = _load(repo, engagement_id, submission_id)
+    return {"submission": _apply(repo, principal, member, sub, Action.REOPEN, body.comment)}
+
+
+@router.post("/engagements/{engagement_id}/submissions/{submission_id}:audit-request-changes")
+def audit_request_changes(
+    engagement_id: str, submission_id: str, body: CommentIn,
+    member: Membership = Depends(membership_dep),
+    principal: Principal = Depends(get_principal), repo: Repository = Depends(get_repo),
+):
+    """The billing audit finds a problem and sends the terms back to be corrected."""
+    sub = _load(repo, engagement_id, submission_id)
+    return {
+        "submission": _apply(
+            repo, principal, member, sub, Action.AUDIT_REQUEST_CHANGES, body.comment
+        )
+    }

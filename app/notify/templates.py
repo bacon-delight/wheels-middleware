@@ -140,27 +140,26 @@ TEMPLATES: dict[str, dict] = {
         "text": "Thanks for approving the terms for {engagement_name}. Finance will validate and "
         "set up billing; we'll email you when your payment schedule is ready. {engagement_url}",
     },
-    "FINANCE_APPROVAL_NEEDED": {
+    "BILLING_AUDIT_NEEDED": {
         "recipients": ["finance"],
-        "subject": "Finance review needed: {engagement_name}",
-        "heading": "Terms are ready for finance validation",
-        "intro": "Hello {recipient_name},<br><br>The client has approved the terms for <strong>"
-        "{engagement_name}</strong>; they are now captured and ready for your finance validation.",
-        "detail": "Review the captured terms and either approve to set up billing, or request "
-        "changes.",
-        "cta": ("Validate terms", "finance_url"),
-        "text": "Client-approved terms for {engagement_name} need finance validation at "
-        "{finance_url}",
+        "subject": "Billing audit needed: {engagement_name}",
+        "heading": "Billing is set up and ready to audit",
+        "intro": "Hello {recipient_name},<br><br>The customer has signed the terms for <strong>"
+        "{engagement_name}</strong> and billing has been generated from them automatically.",
+        "detail": "Check the breakdown — what makes up an invoice, and what bills separately — "
+        "then approve it to take the engagement live, or send it back with your comments.",
+        "cta": ("Audit the billing", "audit_url"),
+        "text": "Billing for {engagement_name} is generated and needs auditing at {audit_url}",
     },
-    "FINANCE_CHANGES_REQUESTED": {
+    "AUDIT_CHANGES_REQUESTED": {
         "recipients": ["provider", "analyst"],
-        "subject": "{engagement_name}: finance requested changes",
-        "heading": "Finance requested changes",
-        "intro": "Hello {recipient_name},<br><br>Finance reviewed <strong>{engagement_name}"
-        "</strong> and requested changes before billing can be set up.",
-        "detail": "Their comments:<br><br><em>{comments}</em>",
+        "subject": "{engagement_name}: the billing audit found a problem",
+        "heading": "The billing audit sent this back",
+        "intro": "Hello {recipient_name},<br><br>The billing for <strong>{engagement_name}"
+        "</strong> was audited and something needs correcting before the engagement goes live.",
+        "detail": "The comments:<br><br><em>{comments}</em>",
         "cta": ("Open engagement", "engagement_url"),
-        "text": "Finance requested changes on {engagement_name}. Comments: {comments}. "
+        "text": "The billing audit on {engagement_name} requested changes: {comments}. "
         "Open at {engagement_url}",
     },
     "TERMS_RESUBMITTED": {

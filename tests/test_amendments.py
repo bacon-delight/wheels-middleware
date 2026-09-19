@@ -60,7 +60,7 @@ def test_cycle_labels_name_the_original_deal_and_each_amendment():
 def test_only_a_completed_cycle_can_be_amended():
     assert can_open_amendment(SubmissionStatus.ACTIVE) is True
     assert can_open_amendment("ACTIVE") is True
-    for status in ("DRAFT", "IN_UNDERWRITING", "PENDING_CLIENT_APPROVAL", "BILLING_SETUP"):
+    for status in ("DRAFT", "IN_UNDERWRITING", "PENDING_CLIENT_APPROVAL", "PENDING_BILLING_AUDIT"):
         assert can_open_amendment(status) is False, status
     assert can_open_amendment(None) is False
 
@@ -140,9 +140,8 @@ def test_the_amendment_takes_over_once_it_goes_live(ctx):
         json={"signature": {"full_name": "Jordan Lee", "place": "Austin"}},
     )
     _as(state, Principal(user_id="analyst1", email="a@wheels.com", groups=["provider"]))
-    client.post(f"/engagements/{eid}/submissions/{sid}:finance-approve")
     assert client.post(
-        f"/engagements/{eid}/submissions/{sid}:setup-billing"
+        f"/engagements/{eid}/submissions/{sid}:approve-billing"
     ).json()["submission"]["status"] == "ACTIVE"
 
     # Cycle 2 is now the one in force, and the new rate is what bills.

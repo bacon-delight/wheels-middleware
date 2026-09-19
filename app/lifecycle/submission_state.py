@@ -32,11 +32,46 @@ class SubmissionStatus(str, Enum):
     REVALIDATING = "REVALIDATING"
     VALIDATION_FAILED = "VALIDATION_FAILED"
     CLIENT_APPROVED = "CLIENT_APPROVED"
-    PENDING_FINANCE_APPROVAL = "PENDING_FINANCE_APPROVAL"
-    CHANGES_REQUESTED_FINANCE = "CHANGES_REQUESTED_FINANCE"
-    FINANCE_APPROVED = "FINANCE_APPROVED"
     BILLING_SETUP = "BILLING_SETUP"
+    PENDING_BILLING_AUDIT = "PENDING_BILLING_AUDIT"
+    CHANGES_REQUESTED_AUDIT = "CHANGES_REQUESTED_AUDIT"
     ACTIVE = "ACTIVE"
+
+
+class Stage(str, Enum):
+    """The five steps a contract is understood to move through.
+
+    Statuses are the machine's own vocabulary and there are more of them than anyone outside
+    it needs — a re-upload being sanity-checked and a customer sitting on a change request are
+    both "Review" to everybody but the machine. The stage is what the interface names, what the
+    lifecycle page groups by, and what a person means when they ask where a deal has got to.
+    """
+
+    NEGOTIATIONS = "NEGOTIATIONS"
+    ONBOARDING = "ONBOARDING"
+    REVIEW = "REVIEW"
+    BILLING_SETUP = "BILLING_SETUP"
+    BILLING_AUDIT = "BILLING_AUDIT"
+    ACTIVE = "ACTIVE"
+
+
+STAGE_LABELS: dict[Stage, str] = {
+    Stage.NEGOTIATIONS: "Negotiations",
+    Stage.ONBOARDING: "Onboarding",
+    Stage.REVIEW: "Review",
+    Stage.BILLING_SETUP: "Billing Setup",
+    Stage.BILLING_AUDIT: "Billing Audit",
+    Stage.ACTIVE: "Active",
+}
+
+STAGE_BLURBS: dict[Stage, str] = {
+    Stage.NEGOTIATIONS: "The deal is being agreed with the customer offline.",
+    Stage.ONBOARDING: "Agreements are uploaded and read.",
+    Stage.REVIEW: "The customer reviews the terms and signs, or asks for changes.",
+    Stage.BILLING_SETUP: "Billing is being configured from the agreed terms.",
+    Stage.BILLING_AUDIT: "The billing breakdown is checked before the engagement goes live.",
+    Stage.ACTIVE: "Signed, billing and running.",
+}
 
 
 class Action(str, Enum):
@@ -49,12 +84,11 @@ class Action(str, Enum):
     RESUBMIT_TO_CLIENT = "resubmit_to_client"  # analyst rejects the change request, resubmits
     SANITY_PASS = "sanity_pass"  # system: re-upload passed sanity checks
     SANITY_FAIL = "sanity_fail"  # system: re-upload failed sanity checks
-    CAPTURE_FIELDS = "capture_fields"  # system: freeze approved terms snapshot
-    FINANCE_APPROVE = "finance_approve"
-    FINANCE_REQUEST_CHANGES = "finance_request_changes"
-    REOPEN = "reopen"  # analyst reopens after finance changes
-    SETUP_BILLING = "setup_billing"
-    BILLING_DONE = "billing_done"  # system: billing config generated
+    CAPTURE_FIELDS = "capture_fields"  # system: freeze approved terms, start billing setup
+    BILLING_READY = "billing_ready"  # system: billing config generated, ready to be audited
+    APPROVE_BILLING = "approve_billing"  # the audit passes and the engagement goes live
+    AUDIT_REQUEST_CHANGES = "audit_request_changes"
+    REOPEN = "reopen"  # analyst reopens after the audit sends it back
 
 
 # Role sets. PROVIDER is included wherever FINANCE is, because finance is folded into the
@@ -93,18 +127,21 @@ TRANSITIONS: tuple[Transition, ...] = (
     ),
     Transition(A.SANITY_PASS, S.REVALIDATING, S.EXTRACTING, _SYSTEM),
     Transition(A.SANITY_FAIL, S.REVALIDATING, S.VALIDATION_FAILED, _SYSTEM),
-    Transition(A.CAPTURE_FIELDS, S.CLIENT_APPROVED, S.PENDING_FINANCE_APPROVAL, _SYSTEM),
-    Transition(A.FINANCE_APPROVE, S.PENDING_FINANCE_APPROVAL, S.FINANCE_APPROVED, _FINANCE),
+    # The customer signing is what starts billing setup; nobody presses a button in between.
+    Transition(A.CAPTURE_FIELDS, S.CLIENT_APPROVED, S.BILLING_SETUP, _SYSTEM),
+    Transition(A.BILLING_READY, S.BILLING_SETUP, S.PENDING_BILLING_AUDIT, _SYSTEM),
+    # The audit reads the billing that was actually generated, which is why it sits here and
+    # not before setup: approving terms tells you what should be billed, not what will be.
+    Transition(A.APPROVE_BILLING, S.PENDING_BILLING_AUDIT, S.ACTIVE, _FINANCE),
     Transition(
-        A.FINANCE_REQUEST_CHANGES,
-        S.PENDING_FINANCE_APPROVAL,
-        S.CHANGES_REQUESTED_FINANCE,
+        A.AUDIT_REQUEST_CHANGES,
+        S.PENDING_BILLING_AUDIT,
+        S.CHANGES_REQUESTED_AUDIT,
         _FINANCE,
     ),
-    Transition(A.REOPEN, S.CHANGES_REQUESTED_FINANCE, S.IN_UNDERWRITING, _PROVIDER),
-    Transition(A.SETUP_BILLING, S.FINANCE_APPROVED, S.BILLING_SETUP, _FINANCE),
-    Transition(A.BILLING_DONE, S.BILLING_SETUP, S.ACTIVE, _SYSTEM),
+    Transition(A.REOPEN, S.CHANGES_REQUESTED_AUDIT, S.IN_UNDERWRITING, _PROVIDER),
 )
+
 
 _BY_KEY: dict[tuple[SubmissionStatus, Action], Transition] = {
     (t.source, t.action): t for t in TRANSITIONS
@@ -127,6 +164,34 @@ def _norm_action(value: Action | str) -> Action:
 
 def _norm_role(value: Role | str) -> Role:
     return value if isinstance(value, Role) else Role(value)
+
+
+# Which of the five steps each status belongs to. Every status has exactly one home, and a
+# status added without one shows up immediately in the test that walks this map.
+STAGE_OF: dict[SubmissionStatus, Stage] = {
+    S.DRAFT: Stage.NEGOTIATIONS,
+    S.EXTRACTING: Stage.ONBOARDING,
+    S.IN_UNDERWRITING: Stage.ONBOARDING,
+    S.REVALIDATING: Stage.ONBOARDING,
+    S.VALIDATION_FAILED: Stage.ONBOARDING,
+    S.PENDING_CLIENT_APPROVAL: Stage.REVIEW,
+    S.CHANGES_REQUESTED_CLIENT: Stage.REVIEW,
+    S.CLIENT_APPROVED: Stage.REVIEW,
+    S.BILLING_SETUP: Stage.BILLING_SETUP,
+    S.PENDING_BILLING_AUDIT: Stage.BILLING_AUDIT,
+    S.CHANGES_REQUESTED_AUDIT: Stage.BILLING_AUDIT,
+    S.ACTIVE: Stage.ACTIVE,
+}
+
+
+def stage_of(status: SubmissionStatus | str | None) -> Stage:
+    """Which step a status sits in. An unknown status is treated as the very beginning."""
+    if status is None:
+        return Stage.NEGOTIATIONS
+    try:
+        return STAGE_OF[_norm_status(status)]
+    except (KeyError, ValueError):
+        return Stage.NEGOTIATIONS
 
 
 def role_can(current: SubmissionStatus | str, action: Action | str, role: Role | str) -> bool:
