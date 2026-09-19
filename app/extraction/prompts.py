@@ -13,7 +13,9 @@ time, which is silent and costs four fifths of the saving.
 
 from __future__ import annotations
 
-from ..ocr.base import DocumentParse
+from collections.abc import Sequence
+
+from ..ocr.base import DocumentParse, PageParse
 from .schema import CALL_RECORD_TYPES, INFO_TYPE_LABELS
 
 SYSTEM_PROMPT = """You are a fleet-contract analyst. You read one Wheels contract — a master \
@@ -86,18 +88,33 @@ def _table_block(page_number: int, index: int, rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def build_document_prefix(parse: DocumentParse) -> str:
-    """The cacheable half: the whole document, identical for all five calls.
+def build_document_prefix(
+    parse: DocumentParse | Sequence[PageParse], *, of_pages: int | None = None
+) -> str:
+    """The cacheable half: the document, identical for every call that shares it.
 
     Nothing request-specific belongs here. A document-type hint, a category name or a timestamp
     in this string would invalidate the cache on every call while looking entirely harmless.
+
+    Takes either a whole parse or a slice of its pages, so one window of a long contract renders
+    the same way the whole of a short one does. Page numbers are the document's own throughout —
+    never renumbered per window — because a citation resolves by the number in its marker.
     """
+    pages = parse.pages if isinstance(parse, DocumentParse) else list(parse)
     parts = [
         "The contract follows, delimited by page markers. Cite the page number shown in the "
         "marker where each value appears. Where a page has detected tables, they are repeated "
         "after the page text in a pipe-delimited form; empty columns are significant.\n"
     ]
-    for page in parse.pages:
+    if of_pages is not None and pages and len(pages) < of_pages:
+        # Said once, here, rather than in each call's instruction: it belongs to the window and
+        # is identical across the calls that share it, so it stays inside the cached prefix.
+        parts.append(
+            f"These are pages {pages[0].page_number}-{pages[-1].page_number} of a "
+            f"{of_pages}-page contract. Extract only what these pages state. Do not infer what "
+            "other pages contain, and do not remark on anything being missing."
+        )
+    for page in pages:
         parts.append(f"===== PAGE {page.page_number} =====\n{page.text}")
         for i, table in enumerate(getattr(page, "tables", []) or [], start=1):
             parts.append(_table_block(page.page_number, i, table.rows))

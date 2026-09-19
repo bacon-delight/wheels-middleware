@@ -16,6 +16,10 @@ class Tool:
     input_schema: dict[str, Any]
 
 
+# What a finished answer looks like across providers. Anything else is suspect by construction.
+_CLEAN_STOPS = {"end_turn", "tool_use", "stop_sequence", "stop", "complete"}
+
+
 @dataclass
 class LLMResult:
     data: dict[str, Any]  # the tool_use input the model produced
@@ -32,6 +36,12 @@ class LLMResult:
     cache_write_tokens: int | None = None
     provider: str | None = None
     latency_ms: int | None = None
+    # What was asked for, so a response that used all of it can be recognised as cut off even
+    # when the provider says nothing useful about why it stopped.
+    max_output_tokens: int | None = None
+    # Whether the parser had to rescue records from a half-written array. Only ever true of a
+    # response that was cut off, and previously invisible.
+    salvaged: bool = False
 
     @property
     def total_tokens(self) -> int | None:
@@ -41,7 +51,23 @@ class LLMResult:
 
     @property
     def truncated(self) -> bool:
-        return self.stop_reason == "max_tokens"
+        """Did this response stop before the model had finished?
+
+        Tested by what a *clean* finish looks like, not by matching one provider's word for
+        failure. `stop_reason == "max_tokens"` is Anthropic's spelling; Nova raises an exception
+        instead, and a third provider says "length". An unrecognised reason counts as suspect,
+        because a truncated extraction is indistinguishable from a short contract.
+
+        A *missing* reason does not, on its own: a provider that never reports one would then
+        mark every call truncated and the flag would mean nothing. Those are caught by the
+        budget test below, which needs no cooperation from the provider at all.
+        """
+        if self.stop_reason and self.stop_reason.lower() not in _CLEAN_STOPS:
+            return True
+        # Budget exhausted to the last few tokens: cut off whatever the stop reason claims.
+        if self.max_output_tokens and (self.output_tokens or 0) >= self.max_output_tokens - 32:
+            return True
+        return self.salvaged
 
 
 class LLMProvider(ABC):

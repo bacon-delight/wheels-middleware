@@ -6,9 +6,22 @@ import logging
 import time
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from .base import LLMProvider, LLMResult, Tool
+from .pricing import price_for
 
 log = logging.getLogger(__name__)
+
+
+class OutputOverflow(Exception):
+    """The model ran out of output budget part-way through its tool call.
+
+    Anthropic reports this as `stopReason == "max_tokens"` and hands back the partial JSON.
+    Nova instead fails the request with "Model produced invalid sequence as part of ToolUse",
+    so nothing comes back at all — the same condition, a different shape, and worth its own type
+    because the answer is to ask for less, not to give up on the model.
+    """
 
 
 class BedrockProvider(LLMProvider):
@@ -49,6 +62,12 @@ class BedrockProvider(LLMProvider):
         temperature: float = 0.0,
     ) -> LLMResult:
         client = self._get_client()
+        # The extractor asks for up to 32,000 tokens a call. A model that stops at 5,000 rejects
+        # that outright, so the ask is capped at what this model will actually produce — and the
+        # caller finds out through `truncated` rather than through a ValidationException.
+        price = price_for(self.model_id)
+        if price and max_tokens > price.max_output_tokens:
+            max_tokens = price.max_output_tokens
         tool_config = {
             "tools": [
                 {
@@ -81,10 +100,17 @@ class BedrockProvider(LLMProvider):
         started = time.monotonic()
         try:
             resp = _call(with_cache=bool(cache_prefix))
-        except Exception as e:  # noqa: BLE001 - caching is an optimisation, never a failure
-            if not cache_prefix:
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            message = e.response.get("Error", {}).get("Message", "")
+            if _is_output_overflow(code, message):
+                raise OutputOverflow(message) from e
+            # Only a rejected cache point earns a second attempt. Retrying a throttle or a read
+            # timeout here would re-run a whole-document generation and bill it twice, which is
+            # what the old blanket `except Exception` did.
+            if not cache_prefix or code != "ValidationException" or "cache" not in message.lower():
                 raise
-            log.warning("Bedrock rejected the cache point (%s); retrying uncached", e)
+            log.warning("Bedrock rejected the cache point (%s); retrying uncached", message)
             resp = _call(with_cache=False)
         latency_ms = int((time.monotonic() - started) * 1000)
 
@@ -100,7 +126,16 @@ class BedrockProvider(LLMProvider):
             cache_write_tokens=usage.get("cacheWriteInputTokens"),
             provider=self.name,
             latency_ms=latency_ms,
+            max_output_tokens=max_tokens,
         )
+
+
+def _is_output_overflow(code: str, message: str) -> bool:
+    """Is this Bedrock's way of saying the answer did not fit?"""
+    text = message.lower()
+    return code == "ModelErrorException" and (
+        "invalid sequence" in text or "tooluse" in text.replace(" ", "")
+    )
 
 
 def _extract_tool_input(resp: dict[str, Any], tool_name: str) -> dict[str, Any]:
