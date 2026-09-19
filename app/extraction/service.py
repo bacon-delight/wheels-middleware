@@ -44,6 +44,10 @@ log = logging.getLogger(__name__)
 # off at their limit and lost them. Sonnet allows far more than this; the cost of a generous
 # budget is nothing unless it is used, whereas the cost of a tight one is a category of the
 # contract silently missing.
+# What a category is expected to need. Used to decide how many windows it takes — NOT to cap
+# what the model may write. Output is billed by what is generated, so a ceiling below the
+# model's own buys nothing and costs everything: Haiku stopped dead at exactly 32,000 tokens
+# with 64,000 available, and every record in that answer was lost.
 CALL_BUDGET: dict[str, int] = {
     "pricing": 32000,
     "sla": 24000,
@@ -122,6 +126,7 @@ class CallTelemetry:
             "error": self.error,
             "window": self.window,
             "pages": list(self.pages) if self.pages else None,
+            "max_output_tokens": self.max_output_tokens,
         }
 
 
@@ -262,6 +267,17 @@ _OUTPUT_PER_PAGE: dict[str, int] = {
 # is asked once, over the whole document, exactly as it always was.
 _DEFAULT_OUTPUT_CAP = 64000
 
+# How much of the available room the plan expects to use. Generous on purpose: the estimate is
+# calibrated on one model, and a more verbose one writes half as much again for the same
+# contract. Splitting everything to be safe costs a cached copy of the document per extra
+# window, on every run, for a risk that only sometimes materialises — so the plan aims high and
+# an overflow is repaired instead.
+_PLANNING_FILL = 0.85
+
+# An overflowed call is retried once, split in two. Twice would be a model that cannot do this
+# at all, and a third attempt is better spent telling somebody.
+_SPLIT_RETRIES = 1
+
 
 @dataclass(frozen=True)
 class _Job:
@@ -272,10 +288,17 @@ class _Job:
     want_doc_meta: bool = False
 
 
-def _output_cap(provider: LLMProvider) -> int:
+def _output_cap(provider: LLMProvider, call: str) -> int:
+    """How much this model will write in one answer.
+
+    The ask is the model's own ceiling rather than a number of ours. A lower cap saves nothing —
+    output is billed by what is generated — and buys a truncation: Haiku stopped at exactly the
+    32,000 we allowed, with 64,000 available, and the whole answer was lost.
+    """
     model = getattr(provider, "model_id", None)
     price = price_for(model) if model else None
-    return price.max_output_tokens if price else _DEFAULT_OUTPUT_CAP
+    model_cap = price.max_output_tokens if price else _DEFAULT_OUTPUT_CAP
+    return model_cap
 
 
 def _plan_calls(provider: LLMProvider, parse: DocumentParse, wanted: list[str]) -> list[_Job]:
@@ -287,11 +310,12 @@ def _plan_calls(provider: LLMProvider, parse: DocumentParse, wanted: list[str]) 
     the short categories up for no reason, and every extra boundary is a chance to separate a
     clause from its context.
     """
-    cap = _output_cap(provider)
     jobs: list[_Job] = []
     for call in wanted:
         expected = _OUTPUT_PER_PAGE.get(call, 300) * max(1, parse.page_count)
-        windows = windows_for_output(parse.pages, expected, cap)
+        windows = windows_for_output(
+            parse.pages, expected, _output_cap(provider, call), fill=_PLANNING_FILL
+        )
         for window in windows:
             # The parties and the effective date are on page one; only the window holding it is
             # asked, so a later window cannot answer from a cross-reference and overwrite them.
@@ -318,6 +342,7 @@ def _run_call(
     window: int = 0,
     pages: tuple[int, int] | None = None,
     want_doc_meta: bool = True,
+    max_tokens: int = 32000,
 ) -> tuple[CallTelemetry, dict[str, Any] | None]:
     """One category over one window. A failure here costs that, and nothing else."""
     telemetry = CallTelemetry(call=call, window=window, pages=pages)
@@ -329,7 +354,7 @@ def _run_call(
                 call, doc_type_hint=doc_type_hint, want_doc_meta=want_doc_meta
             ),
             tool=CONTRACT_TOOL,
-            max_tokens=CALL_BUDGET.get(call, 12000),
+            max_tokens=max_tokens,
         )
     except OutputOverflow as e:
         # Not a failure of the model but of the ask: it ran out of room part-way through the
@@ -414,6 +439,7 @@ def extract_contract(
             window=job.window.index,
             pages=(job.window.first_page, job.window.last_page),
             want_doc_meta=job.want_doc_meta,
+            max_tokens=_output_cap(provider, job.call),
         )
 
     # With one window there is one cached prefix, so a single call is run first to write it and
@@ -436,6 +462,40 @@ def extract_contract(
                 telemetry.append(t)
                 if data is not None:
                     payloads.append((t, data))
+
+    # A call that came back cut off is asked again over half as much document. This is what
+    # makes the planning estimate safe to be generous with: a contract denser than the corpus,
+    # or a model more verbose than the one the estimate was calibrated on, repairs itself
+    # instead of silently returning a third of the terms.
+    for _ in range(_SPLIT_RETRIES):
+        overflowed = [t for t in telemetry if t.truncated and t.pages]
+        if not overflowed:
+            break
+        retries: list[_Job] = []
+        for tel in overflowed:
+            window = next(
+                (j.window for j in plan
+                 if j.call == tel.call and j.window.index == tel.window), None
+            )
+            if window is None or len(window.pages) < 2:
+                continue
+            half = len(window.pages) // 2
+            for n, half_pages in enumerate((window.pages[:half], window.pages[half:])):
+                sub = Window(index=1000 * (tel.window + 1) + n, pages=half_pages)
+                prefixes[sub.index] = build_document_prefix(
+                    sub.pages, of_pages=parse.page_count
+                )
+                retries.append(_Job(call=tel.call, window=sub))
+        if not retries:
+            break
+        log.info("retrying %s truncated call(s) over narrower windows", len(retries))
+        workers = max(1, min(settings.extract_max_concurrency, len(retries)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for t, data in pool.map(run, retries):
+                telemetry.append(t)
+                if data is not None:
+                    payloads.append((t, data))
+        plan = plan + retries
 
     raw_records: list[dict[str, Any]] = []
     invalid: list[str] = []

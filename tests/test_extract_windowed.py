@@ -130,3 +130,49 @@ def test_telemetry_says_which_window_each_call_read(parse):
     rows = [c.as_dict() for c in result.calls]
     assert all(r["pages"] for r in rows), "a call with no page range cannot be diagnosed later"
     assert len({tuple(r["pages"]) for r in rows}) > 1
+
+
+class TruncatingProvider(StubProvider):
+    """Cuts off the first answer to a category, exactly as a real model runs out of room."""
+
+    def __init__(self, model_id: str, cut: str = "misc_operational"):
+        super().__init__(model_id)
+        self.cut = cut
+        self.cut_once = False
+
+    def call_tool(self, *, system, user_text, tool, cache_prefix=None, max_tokens=16000,
+                  temperature=0.0):
+        result = super().call_tool(
+            system=system, user_text=user_text, tool=tool, cache_prefix=cache_prefix,
+            max_tokens=max_tokens, temperature=temperature,
+        )
+        types = {r["info_type"] for r in result.data["records"]}
+        wants_misc = "responsibility" in user_text or "uncategorised" in user_text
+        if wants_misc and not self.cut_once:
+            self.cut_once = True
+            # What Anthropic does on a budget it cannot fit in: the whole ask, nothing usable.
+            return LLMResult(
+                data={"records": []}, model=self.model_id, stop_reason="max_tokens",
+                output_tokens=max_tokens, max_output_tokens=max_tokens,
+            )
+        assert types  # the stub always answers something
+        return result
+
+
+def test_a_cut_off_call_is_asked_again_over_less_document(parse):
+    """Haiku lost every record in a 32,000-token answer this way, and said nothing."""
+    provider = TruncatingProvider("global.anthropic.claude-sonnet-4-6")
+    result = extract_contract(SAMPLE, provider=provider, parse=parse)
+    retried = [c for c in result.calls if c.window >= 1000]
+    assert retried, "a truncated call must be retried over a narrower window"
+    assert len(retried) == 2, "the window should be halved, not abandoned"
+    # And the retry covers the same pages the failed call did.
+    covered = {p for c in retried for p in range(c.pages[0], c.pages[1] + 1)}
+    assert covered == set(range(1, parse.page_count + 1))
+
+
+def test_the_retry_happens_once_and_then_stops(parse):
+    """A model that cannot answer at any width is a different problem, and costs money to ask."""
+    provider = TruncatingProvider("global.anthropic.claude-sonnet-4-6")
+    result = extract_contract(SAMPLE, provider=provider, parse=parse)
+    assert len([c for c in result.calls if c.window >= 1_000_000]) == 0
